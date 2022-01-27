@@ -1,6 +1,7 @@
 package rcsnooper
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -17,12 +18,6 @@ const (
 	rcloneConfigGDriveTokenKey        = "token"
 	rcloneConfigGDriveSAFileKey       = "service_account_file"
 )
-
-type driveBackend struct {
-	clientID     string
-	clientSecret string
-	token        string
-}
 
 // from github.com/rclone/rclone/config/configfile/configfile.go:_load()
 func getRCloneConfig(configPath string) (gc *goconfig.ConfigFile, err error) {
@@ -62,18 +57,26 @@ func (c *Controller) extractDriveBackend(name string) (err error) {
 		return fmt.Errorf("not a GDrive backend: %s", backendType)
 	}
 	// Extract values we need
-	var found bool
+	var (
+		found    bool
+		tokenRaw string
+	)
 	if c.drive.clientID, found = backend[rcloneConfigGDriveClientIDKey]; !found {
 		return fmt.Errorf("%s not found", rcloneConfigGDriveClientIDKey)
 	}
 	if c.drive.clientSecret, found = backend[rcloneConfigGDriveClientSecretKey]; !found {
 		return fmt.Errorf("%s not found", rcloneConfigGDriveClientSecretKey)
 	}
-	if c.drive.token, found = backend[rcloneConfigGDriveTokenKey]; !found {
+	if tokenRaw, found = backend[rcloneConfigGDriveTokenKey]; !found {
 		if _, found = backend[rcloneConfigGDriveSAFileKey]; !found {
 			return errors.New("no suitable authentification found")
 		}
 		return errors.New("authentification with service account not yet implemented")
+	} else {
+		// parse the token fields
+		if err = json.Unmarshal([]byte(tokenRaw), &c.drive.token); err != nil {
+			return fmt.Errorf("failed to parse oauth2 token: %w", err)
+		}
 	}
 	return
 }

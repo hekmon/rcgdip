@@ -1,9 +1,8 @@
 package rcsnooper
 
 import (
-	"fmt"
-
 	"github.com/Unknwon/goconfig"
+	"golang.org/x/oauth2"
 )
 
 type Config struct {
@@ -19,9 +18,6 @@ func New(conf Config) (rcsnooper *Controller, err error) {
 	if err = rcsnooper.extractDriveBackend(conf.DriveBackendName); err != nil {
 		return
 	}
-	fmt.Println(rcsnooper.drive.clientID)
-	fmt.Println(rcsnooper.drive.clientSecret)
-	fmt.Println(rcsnooper.drive.token)
 	return
 }
 
@@ -29,4 +25,10 @@ type Controller struct {
 	// rclone config
 	gc    *goconfig.ConfigFile
 	drive driveBackend
+}
+
+type driveBackend struct {
+	clientID     string
+	clientSecret string
+	token        *oauth2.Token
 }

@@ -5,7 +5,7 @@ import (
 )
 
 func main() {
-	_, err := rcsnooper.New(rcsnooper.Config{
+	rc, err := rcsnooper.New(rcsnooper.Config{
 		RCloneConfigPath: devrcloneconfigpath,
 		DriveBackendName: devdrivebackendname,
 	})
@@ -13,4 +13,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	driveTest(rc.GetDriveInfos())
+
 }
