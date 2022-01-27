@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/hekmon/rcgdip/gdrive"
+	"github.com/hekmon/rcgdip/gdrivewatcher"
 	"github.com/hekmon/rcgdip/rcsnooper"
 )
 
@@ -17,10 +17,12 @@ func main() {
 		panic(err)
 	}
 	// Initialize GDrive controller
-	gd, err := gdrive.New(context.TODO(), rc.Drive)
+	gd, err := gdrivewatcher.New(context.TODO(), rc.Drive)
 	if err != nil {
 		panic(err)
 	}
 
-	gd.TestList()
+	if err = gd.Changes(); err != nil {
+		panic(err)
+	}
 }

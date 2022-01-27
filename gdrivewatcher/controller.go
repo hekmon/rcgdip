@@ -1,4 +1,4 @@
-package gdrive
+package gdrivewatcher
 
 import (
 	"context"
@@ -17,7 +17,9 @@ const (
 )
 
 func New(ctx context.Context, driveConfig rcsnooper.DriveBackend) (c *Controller, err error) {
-	c = new(Controller)
+	c = &Controller{
+		ctx: ctx,
+	}
 	// OAuth2 configuration
 	oauthConf := &oauth2.Config{
 		Scopes:       []string{scopePrefix + driveConfig.Scope},
@@ -36,5 +38,7 @@ func New(ctx context.Context, driveConfig rcsnooper.DriveBackend) (c *Controller
 }
 
 type Controller struct {
-	driveClient *drive.Service
+	ctx            context.Context
+	driveClient    *drive.Service
+	startPageToken string
 }
