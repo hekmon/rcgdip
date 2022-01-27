@@ -1,0 +1,32 @@
+package rcsnooper
+
+import (
+	"fmt"
+
+	"github.com/Unknwon/goconfig"
+)
+
+type Config struct {
+	RCloneConfigPath string
+	DriveBackendName string
+}
+
+func New(conf Config) (rcsnooper *Controller, err error) {
+	rcsnooper = new(Controller)
+	if rcsnooper.gc, err = getRCloneConfig(conf.RCloneConfigPath); err != nil {
+		return
+	}
+	if err = rcsnooper.extractDriveBackend(conf.DriveBackendName); err != nil {
+		return
+	}
+	fmt.Println(rcsnooper.drive.clientID)
+	fmt.Println(rcsnooper.drive.clientSecret)
+	fmt.Println(rcsnooper.drive.token)
+	return
+}
+
+type Controller struct {
+	// rclone config
+	gc    *goconfig.ConfigFile
+	drive driveBackend
+}
