@@ -1,6 +1,8 @@
 package rcsnooper
 
 import (
+	"fmt"
+
 	"github.com/Unknwon/goconfig"
 	"golang.org/x/oauth2"
 )
@@ -12,10 +14,13 @@ type Config struct {
 
 func New(conf Config) (rcsnooper *Controller, err error) {
 	rcsnooper = new(Controller)
-	if rcsnooper.gc, err = getRCloneConfig(conf.RCloneConfigPath); err != nil {
+	if err = rcsnooper.getRCloneConfig(conf.RCloneConfigPath); err != nil {
+		err = fmt.Errorf("can not get RClone configuration: %w", err)
 		return
 	}
 	if err = rcsnooper.extractDriveBackend(conf.DriveBackendName); err != nil {
+		err = fmt.Errorf("can not extract drive backend '%s' from RClone configuration: %w",
+			conf.DriveBackendName, err)
 		return
 	}
 	return
@@ -24,11 +29,12 @@ func New(conf Config) (rcsnooper *Controller, err error) {
 type Controller struct {
 	// rclone config
 	gc    *goconfig.ConfigFile
-	drive driveBackend
+	Drive DriveBackend
 }
 
-type driveBackend struct {
-	clientID     string
-	clientSecret string
-	token        *oauth2.Token
+type DriveBackend struct {
+	ClientID     string
+	ClientSecret string
+	Scope        string
+	Token        *oauth2.Token
 }

@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/rclone/rclone/lib/oauthutil"
+	"github.com/hekmon/rcgdip/rcsnooper"
+
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/drive/v3"
@@ -16,19 +17,19 @@ const (
 	scopePrefix = "https://www.googleapis.com/auth/"
 )
 
-func driveTest(clientID, clientSecret string, token *oauth2.Token) {
+func driveTest(driveConfig rcsnooper.DriveBackend) {
 	// https://developers.google.com/drive/api/v3/quickstart/go
 	ctx := context.Background()
 
 	// If modifying these scopes, delete your previously saved token.json.
-	driveConfig := &oauth2.Config{
-		Scopes:       []string{scopePrefix + "drive"},
+	oauthConf := &oauth2.Config{
+		Scopes:       []string{scopePrefix + driveConfig.Scope},
 		Endpoint:     google.Endpoint,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RedirectURL:  oauthutil.TitleBarRedirectURL,
+		ClientID:     driveConfig.ClientID,
+		ClientSecret: driveConfig.ClientSecret,
+		// RedirectURL:  oauthutil.TitleBarRedirectURL,
 	}
-	client := driveConfig.Client(ctx, token)
+	client := oauthConf.Client(ctx, driveConfig.Token)
 
 	srv, err := drive.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {

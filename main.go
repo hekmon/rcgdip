@@ -14,6 +14,6 @@ func main() {
 		panic(err)
 	}
 
-	driveTest(rc.GetDriveInfos())
+	driveTest(rc.Drive)
 
 }
