@@ -38,8 +38,14 @@ func (c *Controller) Changes() (err error) {
 		err = fmt.Errorf("failed to get all changes recursively: %w", err)
 		return
 	}
-	// Enrich infos about the ones we need
-	filesIndex, err := c.expandChanges(changes)
+	fmt.Println("--------")
+	fmt.Println("CHANGES")
+	for _, change := range changes {
+		fmt.Println(change.FileId, change.File.Name)
+	}
+	fmt.Println("--------")
+	// Search parents and build the index
+	filesIndex, err := c.buildIndex(changes)
 	if err != nil {
 		err = fmt.Errorf("failed to process the %d changes retreived: %w", len(changes), err)
 		return
@@ -50,7 +56,10 @@ func (c *Controller) Changes() (err error) {
 		err = fmt.Errorf("failed to compute the changes paths from the %d changes retreived: %w", len(changes), err)
 		return
 	}
+	fmt.Println("--------")
+	fmt.Println("PATHS")
 	fmt.Println(changesPaths)
+	fmt.Println("--------")
 	return
 }
 
@@ -99,7 +108,7 @@ func (c *Controller) getChanges(nextPageToken string) (changes []*drive.Change, 
 	Layer 2 - Expand/Enrich
 */
 
-func (c *Controller) expandChanges(changes []*drive.Change) (filesIndex filesInfo, err error) {
+func (c *Controller) buildIndex(changes []*drive.Change) (filesIndex filesInfo, err error) {
 	filesIndex = make(filesInfo, len(changes))
 	// Build the file index starting by infos contained in the change list
 	for _, change := range changes {
@@ -159,7 +168,7 @@ func (c *Controller) getFilesParentsInfo(files filesInfo) (err error) {
 		// new files infos discovered, let's find their parents too
 		return c.getFilesParentsInfo(files)
 	}
-	// No search done this run, time to return for real
+	// Every files has been searched and have their info now, time to return for real
 	return
 }
 
@@ -189,87 +198,86 @@ func (c *Controller) getFilePathInfo(fileID string) (infos *fileInfo, err error)
 }
 
 /*
-	Layer 3 - Get changes paths
+	Layer 3 - Get file paths from changes
 */
 
 func (c *Controller) getChangesPath(changes []*drive.Change, filesIndex filesInfo) (changesPaths []string, err error) {
-	rootID := getRootID(filesIndex)
-	if rootID == "" {
-		err = errors.New("impossible de find the root fileID, parent search must has been wrong")
-		return
-	}
 	// Let's compute paths
-	paths := make(map[string]struct{}, len(changes))
-	var path string
+	changesPaths = make([]string, 0, len(changes))
+	var paths []string
 	for _, change := range changes {
-		// Skip is the change is drive metadata related
-		if change.ChangeType != "file" {
+		// Skip if the change is drive metadata related or not a file
+		if change.ChangeType != "file" || change.File.MimeType != folderMimeType {
 			continue
 		}
-		// Compute paths
-		if change.File.MimeType == folderMimeType {
-			if path, err = generatePath(change.FileId, filesIndex); err != nil {
-				err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
-				return
+		// Compute possible paths if files
+		if paths, err = generatePaths(change.FileId, filesIndex); err != nil {
+			err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+			return
+		}
+		changesPaths = append(changesPaths, paths...)
+	}
+	return
+}
+
+func generatePaths(fileID string, filesIndex filesInfo) (buildedPaths []string, err error) {
+	// Get all paths breaken down by elements in bottom up
+	reversedPathsElems, err := generatePathsLookup(fileID, filesIndex)
+	if err != nil {
+		return
+	}
+	// For each path, compute the merged in order path
+	buildedPaths = make([]string, len(reversedPathsElems))
+	for reversedPathElemsIndex, reversedPathElems := range reversedPathsElems {
+		// Inverse the stack
+		orderedElems := make([]string, len(reversedPathElems))
+		for index, elem := range reversedPathElems {
+			orderedElems[len(reversedPathElems)-1-index] = elem
+		}
+		// Build the path
+		buildedPaths[reversedPathElemsIndex] = "/" + path.Join(orderedElems...)
+	}
+	return
+}
+
+func generatePathsLookup(fileID string, filesIndex filesInfo) (buildedPaths [][]string, err error) {
+	// Obtain infos for current fileID
+	fileInfos, found := filesIndex[fileID]
+	if !found {
+		err = fmt.Errorf("fileID '%s' not found", fileID)
+		return
+	}
+	// Stop if no parent, we have reached root folder
+	if len(fileInfos.Parents) == 0 {
+		return
+	}
+	// Follow the white rabbit
+	buildedPaths = make([][]string, len(fileInfos.Parents))
+	var (
+		parentPaths [][]string
+		currentPath []string
+	)
+	for parentIndex, parent := range fileInfos.Parents {
+		// Get paths for this parent
+		if parentPaths, err = generatePathsLookup(parent, filesIndex); err != nil {
+			err = fmt.Errorf("failed to lookup parent path for folderID '%s': %w", parent, err)
+			return
+		}
+		// If parent is root folder, just add ourself in this path
+		if parentPaths == nil {
+			buildedPaths[parentIndex] = []string{fileInfos.Name}
+			continue
+		}
+		// Else add paths to final return while prefixing with current file/folder name
+		for _, parentPath := range parentPaths {
+			currentPath = make([]string, len(parentPath)+1)
+			currentPath[0] = fileInfos.Name
+			for parentPathElemIndex, parentPathElem := range parentPath {
+				currentPath[parentPathElemIndex+1] = parentPathElem
 			}
-			paths[path] = struct{}{}
-		} else if hasParent(change.File.Parents, rootID) {
-			paths["/"] = struct{}{}
+			buildedPaths[parentIndex] = currentPath
 		}
 	}
-	// Create the final slice of uniq paths
-	changesPaths = make([]string, len(paths))
-	i := 0
-	for path := range paths {
-		changesPaths[i] = path
-		i++
-	}
-	return
-}
-
-func getRootID(files filesInfo) (rootID string) {
-	for fileID, fileInfos := range files {
-		if len(fileInfos.Parents) == 0 {
-			rootID = fileID
-			return
-		}
-	}
-	return
-}
-
-func hasParent(parents []string, search string) (contains bool) {
-	for _, parent := range parents {
-		if parent == search {
-			return true
-		}
-	}
-	return
-}
-
-func generatePath(fileID string, filesIndex filesInfo) (buildedPath string, err error) {
-	// Build the reverse stack
-	reverseElems := make([]string, 0, len(filesIndex))
-	for {
-		// Obtain infos for current fileID
-		fileInfos, found := filesIndex[fileID]
-		if !found {
-			err = fmt.Errorf("fileID '%s' not found", fileID)
-			return
-		}
-		reverseElems = append(reverseElems, fileInfos.Name)
-		// Stop if no parent
-		if len(fileInfos.Parents) == 0 {
-			break
-		}
-		// Else pick first and keep building up
-		fileID = fileInfos.Parents[0]
-	}
-	// Inverse the stack
-	elems := make([]string, len(reverseElems))
-	for index, elem := range reverseElems {
-		elems[len(reverseElems)-1-index] = elem
-	}
-	// Build and return the path
-	buildedPath = path.Join(elems...)
+	// All parents paths explored
 	return
 }
