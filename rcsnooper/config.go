@@ -66,16 +66,14 @@ func (c *Controller) extractDriveBackend(name string) (err error) {
 	if c.Drive.Scope, found = backend[rcloneConfigGDriveScopeKey]; !found {
 		return fmt.Errorf("key %s not found", rcloneConfigGDriveScopeKey)
 	}
-	if tokenRaw, found = backend[rcloneConfigGDriveTokenKey]; !found {
-		if _, found = backend[rcloneConfigGDriveSAFileKey]; !found {
-			return errors.New("no suitable authentification found (oauth2 or service account)")
-		}
-		return errors.New("authentification with service account not yet implemented")
-	} else {
-		// parse the token fields
+	if tokenRaw, found = backend[rcloneConfigGDriveTokenKey]; found {
 		if err = json.Unmarshal([]byte(tokenRaw), &c.Drive.Token); err != nil {
 			return fmt.Errorf("failed to parse oauth2 token: %w", err)
 		}
+	} else if _, found = backend[rcloneConfigGDriveSAFileKey]; found {
+		return errors.New("authentification with service account not yet implemented")
+	} else {
+		return errors.New("no suitable authentification found (oauth2 or service account)")
 	}
 	return
 }
