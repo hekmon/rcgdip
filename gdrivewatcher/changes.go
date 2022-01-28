@@ -16,9 +16,10 @@ const (
 )
 
 type fileChange struct {
-	ID    string
-	Time  time.Time
-	Paths []string
+	Event   time.Time
+	Deleted bool
+	Paths   []string
+	Created time.Time
 }
 
 type filesIndex map[string]*fileInfo
@@ -57,16 +58,21 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 	// Let's compute paths for each file change
 	changedFiles = make([]fileChange, 0, len(changes))
 	var (
-		changeTime time.Time
-		paths      []string
+		createdTime time.Time
+		changeTime  time.Time
+		paths       []string
 	)
 	for _, change := range changes {
 		// Skip if the change is drive metadata related or not a file
 		if change.ChangeType != "file" || change.File.MimeType == folderMimeType {
 			continue
 		}
-		// Convert change time
+		// Convert times
 		if changeTime, err = time.Parse(time.RFC3339, change.Time); err != nil {
+			err = fmt.Errorf("failed to convert change timefor fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+			return
+		}
+		if createdTime, err = time.Parse(time.RFC3339, change.File.CreatedTime); err != nil {
 			err = fmt.Errorf("failed to convert change timefor fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
 			return
 		}
@@ -77,9 +83,10 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 		}
 		// Save up the consolidated info for return collection
 		changedFiles = append(changedFiles, fileChange{
-			ID:    change.FileId,
-			Time:  changeTime,
-			Paths: paths,
+			Event:   changeTime,
+			Deleted: change.Removed || change.File.Trashed,
+			Created: createdTime,
+			Paths:   paths,
 		})
 	}
 	return
