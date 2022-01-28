@@ -22,7 +22,7 @@ func main() {
 		panic(err)
 	}
 
-	if err = gd.Changes(); err != nil {
+	if err = gd.FakeRun(); err != nil {
 		panic(err)
 	}
 }

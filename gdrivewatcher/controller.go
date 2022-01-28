@@ -3,6 +3,7 @@ package gdrivewatcher
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hekmon/rcgdip/rcsnooper"
 
@@ -41,4 +42,26 @@ type Controller struct {
 	ctx            context.Context
 	driveClient    *drive.Service
 	startPageToken string
+}
+
+func (c *Controller) FakeRun() (err error) {
+	// Dev: fake init
+	changesStart, err := c.driveClient.Changes.GetStartPageToken().Context(c.ctx).Do()
+	if err != nil {
+		return
+	}
+	c.startPageToken = changesStart.StartPageToken
+	fmt.Println("Waiting", 30*time.Second)
+	time.Sleep(30 * time.Second)
+
+	// Compute the paths containing changes
+	changesFiles, err := c.GetFilesChanges()
+	if err != nil {
+		err = fmt.Errorf("failed to retreived changed files: %w", err)
+		return
+	}
+	fmt.Println("---- CHANGED FILES ----")
+	fmt.Printf("%+v\n", changesFiles)
+	fmt.Println("--------")
+	return
 }

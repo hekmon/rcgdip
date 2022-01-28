@@ -11,20 +11,25 @@ import (
 )
 
 const (
-	gdriveFields      = "name,parents"
 	maxChangesPerPage = 1000
 	folderMimeType    = "application/vnd.google-apps.folder"
 )
 
-func (c *Controller) Changes() (err error) {
-	// Dev: fake init
-	changesStart, err := c.driveClient.Changes.GetStartPageToken().Context(c.ctx).Do()
-	if err != nil {
-		return
-	}
-	c.startPageToken = changesStart.StartPageToken
-	fmt.Println("Waiting", 30*time.Second)
-	time.Sleep(30 * time.Second)
+type fileChange struct {
+	ID    string
+	Time  time.Time
+	Paths []string
+}
+
+type filesIndex map[string]*fileInfo
+
+type fileInfo struct {
+	Name    string
+	Folder  bool
+	Parents []string
+}
+
+func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 	// Save the start token in case something goes wrong for future retry
 	backupStartToken := c.startPageToken
 	defer func() {
@@ -33,48 +38,60 @@ func (c *Controller) Changes() (err error) {
 		}
 	}()
 	// Get changes
-	changes, err := c.getChanges(c.startPageToken)
+	changes, err := c.fetchChanges(c.startPageToken)
 	if err != nil {
 		err = fmt.Errorf("failed to get all changes recursively: %w", err)
 		return
 	}
-	fmt.Println("--------")
-	fmt.Println("CHANGES")
+	fmt.Println("---- CHANGES ----")
 	for _, change := range changes {
-		fmt.Println(change.FileId, change.File.Name)
+		fmt.Printf("%+v\n%+v\n\n", *change, *change.File)
 	}
 	fmt.Println("--------")
-	// Search parents and build the index
-	filesIndex, err := c.buildIndex(changes)
+	// Build the index with parents for further path computation
+	index, err := c.buildIndex(changes)
 	if err != nil {
 		err = fmt.Errorf("failed to process the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	// Compute the paths containing changes
-	changesPaths, err := c.getChangesPath(changes, filesIndex)
-	if err != nil {
-		err = fmt.Errorf("failed to compute the changes paths from the %d changes retreived: %w", len(changes), err)
-		return
+	// Let's compute paths for each file change
+	changedFiles = make([]fileChange, 0, len(changes))
+	var (
+		changeTime time.Time
+		paths      []string
+	)
+	for _, change := range changes {
+		// Skip if the change is drive metadata related or not a file
+		if change.ChangeType != "file" || change.File.MimeType == folderMimeType {
+			continue
+		}
+		// Convert change time
+		if changeTime, err = time.Parse(time.RFC3339, change.Time); err != nil {
+			err = fmt.Errorf("failed to convert change timefor fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+			return
+		}
+		// Compute possible paths
+		if paths, err = generatePaths(change.FileId, index); err != nil {
+			err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+			return
+		}
+		// Save up the consolidated info for return collection
+		changedFiles = append(changedFiles, fileChange{
+			ID:    change.FileId,
+			Time:  changeTime,
+			Paths: paths,
+		})
 	}
-	fmt.Println("--------")
-	fmt.Println("PATHS")
-	fmt.Println(changesPaths)
-	fmt.Println("--------")
 	return
 }
 
-/*
-	Layer 1 - get all changes
-*/
-
-func (c *Controller) getChanges(nextPageToken string) (changes []*drive.Change, err error) {
+func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change, err error) {
 	fmt.Println("change request")
 	// Build Request
 	changesReq := c.driveClient.Changes.List(nextPageToken).Context(c.ctx)
 	// changesReq.PageSize(1)
 	changesReq.PageSize(maxChangesPerPage)
-	// changesReq.Fields(googleapi.Field("kind"), googleapi.Field("nextPageToken"), googleapi.Field("newStartPageToken"),
-	// googleapi.Field("changes"), googleapi.Field("changes/fileId"))
+	// changesReq.Fields(googleapi.Field("fileId"), googleapi.Field("removed"), googleapi.Field("time"), googleapi.Field("nextPageToken"), googleapi.Field("newStartPageToken"), googleapi.Field("changes"), googleapi.Field("changes/fileId"))
 	changesReq.Fields(googleapi.Field("*"))
 	// Execute Request
 	changeList, err := changesReq.Do()
@@ -96,7 +113,7 @@ func (c *Controller) getChanges(nextPageToken string) (changes []*drive.Change, 
 	}
 	// If not, handle next pages recursively
 	var nextPagesChanges []*drive.Change
-	if nextPagesChanges, err = c.getChanges(changeList.NextPageToken); err != nil {
+	if nextPagesChanges, err = c.fetchChanges(changeList.NextPageToken); err != nil {
 		err = fmt.Errorf("failed to get change list next page: %w", err)
 		return
 	}
@@ -104,12 +121,8 @@ func (c *Controller) getChanges(nextPageToken string) (changes []*drive.Change, 
 	return
 }
 
-/*
-	Layer 2 - Expand/Enrich
-*/
-
-func (c *Controller) buildIndex(changes []*drive.Change) (filesIndex filesInfo, err error) {
-	filesIndex = make(filesInfo, len(changes))
+func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err error) {
+	index = make(filesIndex, len(changes))
 	// Build the file index starting by infos contained in the change list
 	for _, change := range changes {
 		// Skip is the change is drive metadata related
@@ -117,30 +130,30 @@ func (c *Controller) buildIndex(changes []*drive.Change) (filesIndex filesInfo, 
 			continue
 		}
 		// Extract known info for this file
-		filesIndex[change.FileId] = &fileInfo{
+		index[change.FileId] = &fileInfo{
 			Name:    change.File.Name,
 			Folder:  change.File.MimeType == folderMimeType,
 			Parents: change.File.Parents,
 		}
 		// Mark its parent for search
 		for _, parent := range change.File.Parents {
-			filesIndex[parent] = nil // mark for search
+			index[parent] = nil // mark for search
 		}
 	}
 	// Found out all missing parents infos
-	if err = c.getFilesParentsInfo(filesIndex); err != nil {
+	if err = c.getFilesParentsInfo(index); err != nil {
 		err = fmt.Errorf("failed to recover all parents files infos: %w", err)
 		return
 	}
-	for fileID, fileInfos := range filesIndex {
+	fmt.Println("---- INDEX ----")
+	for fileID, fileInfos := range index {
 		fmt.Printf("%s: %+v\n", fileID, *fileInfos)
 	}
+	fmt.Println("--------")
 	return
 }
 
-type filesInfo map[string]*fileInfo
-
-func (c *Controller) getFilesParentsInfo(files filesInfo) (err error) {
+func (c *Controller) getFilesParentsInfo(files filesIndex) (err error) {
 	var runWithSearch, found bool
 	// Check all fileIDs
 	for fileID, fileInfos := range files {
@@ -149,7 +162,7 @@ func (c *Controller) getFilesParentsInfo(files filesInfo) (err error) {
 			continue
 		}
 		// Get file infos
-		if fileInfos, err = c.getFilePathInfo(fileID); err != nil {
+		if fileInfos, err = c.getFileInfo(fileID); err != nil {
 			err = fmt.Errorf("failed to get file info for fileID %s: %w", fileID, err)
 			return
 		}
@@ -172,13 +185,7 @@ func (c *Controller) getFilesParentsInfo(files filesInfo) (err error) {
 	return
 }
 
-type fileInfo struct {
-	Name    string
-	Folder  bool
-	Parents []string
-}
-
-func (c *Controller) getFilePathInfo(fileID string) (infos *fileInfo, err error) {
+func (c *Controller) getFileInfo(fileID string) (infos *fileInfo, err error) {
 	// Build request
 	fileRequest := c.driveClient.Files.Get(fileID).Context(c.ctx)
 	fileRequest.Fields(googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"))
@@ -197,30 +204,7 @@ func (c *Controller) getFilePathInfo(fileID string) (infos *fileInfo, err error)
 	return
 }
 
-/*
-	Layer 3 - Get file paths from changes
-*/
-
-func (c *Controller) getChangesPath(changes []*drive.Change, filesIndex filesInfo) (changesPaths []string, err error) {
-	// Let's compute paths
-	changesPaths = make([]string, 0, len(changes))
-	var paths []string
-	for _, change := range changes {
-		// Skip if the change is drive metadata related or not a file
-		if change.ChangeType != "file" || change.File.MimeType != folderMimeType {
-			continue
-		}
-		// Compute possible paths if files
-		if paths, err = generatePaths(change.FileId, filesIndex); err != nil {
-			err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
-			return
-		}
-		changesPaths = append(changesPaths, paths...)
-	}
-	return
-}
-
-func generatePaths(fileID string, filesIndex filesInfo) (buildedPaths []string, err error) {
+func generatePaths(fileID string, filesIndex filesIndex) (buildedPaths []string, err error) {
 	// Get all paths breaken down by elements in bottom up
 	reversedPathsElems, err := generatePathsLookup(fileID, filesIndex)
 	if err != nil {
@@ -240,7 +224,7 @@ func generatePaths(fileID string, filesIndex filesInfo) (buildedPaths []string, 
 	return
 }
 
-func generatePathsLookup(fileID string, filesIndex filesInfo) (buildedPaths [][]string, err error) {
+func generatePathsLookup(fileID string, filesIndex filesIndex) (buildedPaths [][]string, err error) {
 	// Obtain infos for current fileID
 	fileInfos, found := filesIndex[fileID]
 	if !found {
