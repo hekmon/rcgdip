@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/Unknwon/goconfig"
-	"github.com/rclone/rclone/fs/config"
 )
 
 const (
@@ -33,11 +32,11 @@ func (c *Controller) getRCloneConfig(configPath string) (err error) {
 		return
 	}
 	defer fd.Close()
-	cryptReader, err := config.Decrypt(fd)
-	if err != nil {
-		return
-	}
-	c.gc, err = goconfig.LoadFromReader(cryptReader)
+	// cryptReader, err := config.Decrypt(fd)
+	// if err != nil {
+	// 	return
+	// }
+	c.gc, err = goconfig.LoadFromReader(fd)
 	return
 }
 
