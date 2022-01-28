@@ -69,11 +69,11 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 		}
 		// Convert times
 		if changeTime, err = time.Parse(time.RFC3339, change.Time); err != nil {
-			err = fmt.Errorf("failed to convert change timefor fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+			err = fmt.Errorf("failed to convert change time for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
 			return
 		}
 		if createdTime, err = time.Parse(time.RFC3339, change.File.CreatedTime); err != nil {
-			err = fmt.Errorf("failed to convert change timefor fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+			err = fmt.Errorf("failed to convert create time for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
 			return
 		}
 		// Compute possible paths
@@ -96,10 +96,19 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	fmt.Println("change request")
 	// Build Request
 	changesReq := c.driveClient.Changes.List(nextPageToken).Context(c.ctx)
-	// changesReq.PageSize(1)
-	changesReq.PageSize(maxChangesPerPage)
-	// changesReq.Fields(googleapi.Field("fileId"), googleapi.Field("removed"), googleapi.Field("time"), googleapi.Field("nextPageToken"), googleapi.Field("newStartPageToken"), googleapi.Field("changes"), googleapi.Field("changes/fileId"))
-	changesReq.Fields(googleapi.Field("*"))
+	changesReq.IncludeRemoved(true)
+	{
+		// Dev
+		// changesReq.PageSize(1)
+		// changesReq.Fields(googleapi.Field("*"))
+	}
+	{
+		// Prod
+		changesReq.PageSize(maxChangesPerPage)
+		changesReq.Fields(googleapi.Field("nextPageToken"), googleapi.Field("newStartPageToken"), googleapi.Field("changes"),
+			googleapi.Field("changes/fileId"), googleapi.Field("changes/removed"), googleapi.Field("changes/time"), googleapi.Field("changes/changeType"), googleapi.Field("changes/file"),
+			googleapi.Field("changes/file/name"), googleapi.Field("changes/file/mimeType"), googleapi.Field("changes/file/trashed"), googleapi.Field("changes/file/parents"), googleapi.Field("changes/file/createdTime"))
+	}
 	// Execute Request
 	changeList, err := changesReq.Do()
 	if err != nil {
