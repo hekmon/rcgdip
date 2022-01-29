@@ -18,6 +18,7 @@ const (
 	rcloneConfigGDriveTokenKey        = "token"
 	rcloneConfigGDriveSAFileKey       = "service_account_file"
 	rcloneConfigGDriveRootFolderIDKey = "root_folder_id"
+	rcloneConfigGDriveTeameDriveKey   = "team_drive"
 )
 
 // from github.com/rclone/rclone/config/configfile/configfile.go:_load()
@@ -77,7 +78,10 @@ func (c *Controller) extractDriveBackend(name string) (err error) {
 		return errors.New("no suitable authentification found (oauth2 or service account)")
 	}
 	if c.Drive.RootFolderID, found = backend[rcloneConfigGDriveRootFolderIDKey]; !found {
-		fmt.Println("no root folder id found")
+		fmt.Println("no custom root folder id found")
+	}
+	if c.Drive.TeamDrive, found = backend[rcloneConfigGDriveTeameDriveKey]; !found {
+		fmt.Println("no team drive found")
 	}
 	return
 }

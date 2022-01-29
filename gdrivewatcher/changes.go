@@ -68,6 +68,9 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	// Build Request
 	changesReq := c.driveClient.Changes.List(nextPageToken).Context(c.ctx)
 	changesReq.IncludeRemoved(true)
+	if c.teamDrive != "" {
+		changesReq.SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.teamDrive)
+	}
 	{
 		// Dev
 		// changesReq.PageSize(1)
@@ -184,6 +187,9 @@ func (c *Controller) getfilesIndexInfos(fileID string) (infos *filesIndexInfos, 
 	// Build request
 	fileRequest := c.driveClient.Files.Get(fileID).Context(c.ctx)
 	fileRequest.Fields(googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"))
+	if c.teamDrive != "" {
+		fileRequest.SupportsAllDrives(true)
+	}
 	// Execute request
 	filesIndexInfoss, err := fileRequest.Do()
 	if err != nil {

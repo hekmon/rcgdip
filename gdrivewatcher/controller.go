@@ -21,6 +21,7 @@ func New(ctx context.Context, driveConfig rcsnooper.DriveBackend) (c *Controller
 	c = &Controller{
 		ctx:          ctx,
 		folderRootID: driveConfig.RootFolderID,
+		teamDrive:    driveConfig.TeamDrive,
 	}
 	// OAuth2 configuration
 	oauthConf := &oauth2.Config{
@@ -46,11 +47,16 @@ type Controller struct {
 	startPageToken string
 	// Config
 	folderRootID string
+	teamDrive    string
 }
 
 func (c *Controller) FakeRun() (err error) {
 	// Dev: fake init
-	changesStart, err := c.driveClient.Changes.GetStartPageToken().Context(c.ctx).Do()
+	changesReq := c.driveClient.Changes.GetStartPageToken().Context(c.ctx)
+	if c.teamDrive != "" {
+		changesReq.SupportsAllDrives(true).DriveId(c.teamDrive)
+	}
+	changesStart, err := changesReq.Do()
 	if err != nil {
 		return
 	}

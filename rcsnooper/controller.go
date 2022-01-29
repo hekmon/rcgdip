@@ -38,4 +38,5 @@ type DriveBackend struct {
 	Scope        string
 	Token        *oauth2.Token
 	RootFolderID string
+	TeamDrive    string
 }
