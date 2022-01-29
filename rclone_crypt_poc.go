@@ -24,11 +24,28 @@ func rclone() {
 	}
 
 	config.SetData(storageConfig)
+}
 
-	err = CryptInit("DMECrypt:", []string{"Films/Rip 2160p", "Animes"})
+func DriveInit(name string) (err error) {
+	// Let's make configfs happy
+	fs.Register(&fs.RegInfo{
+		Name: "drive",
+	})
+	//
+	fsInfo, configName, fsPath, config, err := fs.ConfigFs(name + ":")
 	if err != nil {
-		panic(fmt.Sprintf("cryptinit: %v", err))
+		return fmt.Errorf("can get config for '%s': %w", name, err)
 	}
+	if fsInfo.Name != "drive" {
+		return errors.New("the remote needs to be of type \"drive\"")
+	}
+	fmt.Println(configName, fsPath)
+	value, ok := config.Get("token")
+	if !ok {
+		return errors.New("value not found")
+	}
+	fmt.Println(value)
+	return
 }
 
 func CryptInit(path string, files []string) (err error) {
