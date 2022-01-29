@@ -19,7 +19,8 @@ const (
 
 func New(ctx context.Context, driveConfig rcsnooper.DriveBackend) (c *Controller, err error) {
 	c = &Controller{
-		ctx: ctx,
+		ctx:          ctx,
+		folderRootID: driveConfig.RootFolderID,
 	}
 	// OAuth2 configuration
 	oauthConf := &oauth2.Config{
@@ -39,9 +40,12 @@ func New(ctx context.Context, driveConfig rcsnooper.DriveBackend) (c *Controller
 }
 
 type Controller struct {
-	ctx            context.Context
+	ctx context.Context
+	// Google Drive API client
 	driveClient    *drive.Service
 	startPageToken string
+	// Config
+	folderRootID string
 }
 
 func (c *Controller) FakeRun() (err error) {

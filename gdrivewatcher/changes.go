@@ -46,14 +46,16 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	// Transforme each change into a suitable file event if it is a match
+	// Process each event
 	changedFiles = make([]fileChange, 0, len(changes))
 	var fc *fileChange
 	for _, change := range changes {
+		// Transforme change into a suitable file event
 		if fc, err = c.processChange(change, index); err != nil {
 			err = fmt.Errorf("failed to process the %d changes retreived: %w", len(changes), err)
 			return
 		}
+		// If change is valid, add it to the return list
 		if fc != nil {
 			changedFiles = append(changedFiles, *fc)
 		}
@@ -208,10 +210,23 @@ func (c *Controller) processChange(change *drive.Change, index filesIndex) (fc *
 		err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
 		return
 	}
-	// Reverse the paths  (from bottom up to top down) to be exploitable
-	validPaths := make([]string, len(reversedPaths))
-	for index, reversedPath := range reversedPaths {
-		validPaths[index] = reversedPath.Reverse().Path()
+	// Validate and reverse the paths (from bottom up to top down) to be exploitables
+	validPaths := make([]string, 0, len(reversedPaths))
+	for _, reversedPath := range reversedPaths {
+		// If custom root folder id, search it and rewrite paths with new root
+		if c.folderRootID != "" {
+			if !reversedPath.CutAt(c.folderRootID) {
+				fmt.Printf("path '%s' does not contain the custom root folder id, discarding it\n", reversedPath.Reverse().Path())
+				continue // root folder id not found in this path, skipping
+			}
+		}
+		// Path valid, adding it to the list
+		validPaths = append(validPaths, reversedPath.Reverse().Path())
+	}
+	if len(validPaths) == 0 {
+		// no valid path found (because of root folder id) skipping this change
+		fmt.Printf("change for file '%s' does not contain any valid path, discarding it\n", change.File.Name)
+		return
 	}
 	// Convert times
 	changeTime, err := time.Parse(time.RFC3339, change.Time)

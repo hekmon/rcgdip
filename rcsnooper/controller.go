@@ -37,4 +37,5 @@ type DriveBackend struct {
 	ClientSecret string
 	Scope        string
 	Token        *oauth2.Token
+	RootFolderID string
 }

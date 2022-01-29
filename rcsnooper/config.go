@@ -17,6 +17,7 @@ const (
 	rcloneConfigGDriveScopeKey        = "scope"
 	rcloneConfigGDriveTokenKey        = "token"
 	rcloneConfigGDriveSAFileKey       = "service_account_file"
+	rcloneConfigGDriveRootFolderIDKey = "root_folder_id"
 )
 
 // from github.com/rclone/rclone/config/configfile/configfile.go:_load()
@@ -74,6 +75,9 @@ func (c *Controller) extractDriveBackend(name string) (err error) {
 		return errors.New("authentification with service account not yet implemented")
 	} else {
 		return errors.New("no suitable authentification found (oauth2 or service account)")
+	}
+	if c.Drive.RootFolderID, found = backend[rcloneConfigGDriveRootFolderIDKey]; !found {
+		fmt.Println("no root folder id found")
 	}
 	return
 }
