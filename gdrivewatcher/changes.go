@@ -22,14 +22,6 @@ type fileChange struct {
 	Created time.Time
 }
 
-type filesIndex map[string]*fileInfo
-
-type fileInfo struct {
-	Name    string
-	Folder  bool
-	Parents []string
-}
-
 func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 	// Save the start token in case something goes wrong for future retry
 	backupStartToken := c.startPageToken
@@ -139,6 +131,14 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	return
 }
 
+type filesIndex map[string]*filesIndexInfos
+
+type filesIndexInfos struct {
+	Name    string
+	Folder  bool
+	Parents []string
+}
+
 func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err error) {
 	index = make(filesIndex, len(changes))
 	// Build the file index starting by infos contained in the change list
@@ -148,7 +148,7 @@ func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err 
 			continue
 		}
 		// Extract known info for this file
-		index[change.FileId] = &fileInfo{
+		index[change.FileId] = &filesIndexInfos{
 			Name:    change.File.Name,
 			Folder:  change.File.MimeType == folderMimeType,
 			Parents: change.File.Parents,
@@ -164,8 +164,8 @@ func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err 
 		return
 	}
 	fmt.Println("---- INDEX ----")
-	for fileID, fileInfos := range index {
-		fmt.Printf("%s: %+v\n", fileID, *fileInfos)
+	for fileID, filesIndexInfoss := range index {
+		fmt.Printf("%s: %+v\n", fileID, *filesIndexInfoss)
 	}
 	fmt.Println("--------")
 	return
@@ -174,20 +174,20 @@ func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err 
 func (c *Controller) getFilesParentsInfo(files filesIndex) (err error) {
 	var runWithSearch, found bool
 	// Check all fileIDs
-	for fileID, fileInfos := range files {
+	for fileID, filesIndexInfoss := range files {
 		// Is this fileIDs already searched ?
-		if fileInfos != nil {
+		if filesIndexInfoss != nil {
 			continue
 		}
 		// Get file infos
-		if fileInfos, err = c.getFileInfo(fileID); err != nil {
+		if filesIndexInfoss, err = c.getfilesIndexInfos(fileID); err != nil {
 			err = fmt.Errorf("failed to get file info for fileID %s: %w", fileID, err)
 			return
 		}
 		// Save them
-		files[fileID] = fileInfos
+		files[fileID] = filesIndexInfoss
 		// Prepare its parents for search if unknown
-		for _, parent := range fileInfos.Parents {
+		for _, parent := range filesIndexInfoss.Parents {
 			if _, found = files[parent]; !found {
 				files[parent] = nil
 			}
@@ -203,21 +203,21 @@ func (c *Controller) getFilesParentsInfo(files filesIndex) (err error) {
 	return
 }
 
-func (c *Controller) getFileInfo(fileID string) (infos *fileInfo, err error) {
+func (c *Controller) getfilesIndexInfos(fileID string) (infos *filesIndexInfos, err error) {
 	// Build request
 	fileRequest := c.driveClient.Files.Get(fileID).Context(c.ctx)
 	fileRequest.Fields(googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"))
 	// Execute request
-	fileInfos, err := fileRequest.Do()
+	filesIndexInfoss, err := fileRequest.Do()
 	if err != nil {
 		err = fmt.Errorf("failed to execute file info get API query: %w", err)
 		return
 	}
 	// Extract data
-	infos = &fileInfo{
-		Name:    fileInfos.Name,
-		Folder:  fileInfos.MimeType == folderMimeType,
-		Parents: fileInfos.Parents,
+	infos = &filesIndexInfos{
+		Name:    filesIndexInfoss.Name,
+		Folder:  filesIndexInfoss.MimeType == folderMimeType,
+		Parents: filesIndexInfoss.Parents,
 	}
 	return
 }
@@ -237,29 +237,29 @@ func generatePaths(fileID string, filesIndex filesIndex) (buildedPaths []string,
 			orderedElems[len(reversedPathElems)-1-index] = elem
 		}
 		// Build the path
-		buildedPaths[reversedPathElemsIndex] = "/" + path.Join(orderedElems...)
+		buildedPaths[reversedPathElemsIndex] = path.Join(orderedElems...)
 	}
 	return
 }
 
 func generatePathsLookup(fileID string, filesIndex filesIndex) (buildedPaths [][]string, err error) {
 	// Obtain infos for current fileID
-	fileInfos, found := filesIndex[fileID]
+	filesIndexInfoss, found := filesIndex[fileID]
 	if !found {
 		err = fmt.Errorf("fileID '%s' not found", fileID)
 		return
 	}
 	// Stop if no parent, we have reached root folder
-	if len(fileInfos.Parents) == 0 {
+	if len(filesIndexInfoss.Parents) == 0 {
 		return
 	}
 	// Follow the white rabbit
-	buildedPaths = make([][]string, len(fileInfos.Parents))
+	buildedPaths = make([][]string, len(filesIndexInfoss.Parents))
 	var (
 		parentPaths [][]string
 		currentPath []string
 	)
-	for parentIndex, parent := range fileInfos.Parents {
+	for parentIndex, parent := range filesIndexInfoss.Parents {
 		// Get paths for this parent
 		if parentPaths, err = generatePathsLookup(parent, filesIndex); err != nil {
 			err = fmt.Errorf("failed to lookup parent path for folderID '%s': %w", parent, err)
@@ -267,13 +267,13 @@ func generatePathsLookup(fileID string, filesIndex filesIndex) (buildedPaths [][
 		}
 		// If parent is root folder, just add ourself in this path
 		if parentPaths == nil {
-			buildedPaths[parentIndex] = []string{fileInfos.Name}
+			buildedPaths[parentIndex] = []string{filesIndexInfoss.Name}
 			continue
 		}
 		// Else add paths to final return while prefixing with current file/folder name
 		for _, parentPath := range parentPaths {
 			currentPath = make([]string, len(parentPath)+1)
-			currentPath[0] = fileInfos.Name
+			currentPath[0] = filesIndexInfoss.Name
 			for parentPathElemIndex, parentPathElem := range parentPath {
 				currentPath[parentPathElemIndex+1] = parentPathElem
 			}
