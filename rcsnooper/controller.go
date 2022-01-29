@@ -36,7 +36,7 @@ func New(conf Config) (rcsnooper *Controller, err error) {
 	}
 	// Initialize crypt cypher for path decryption
 	if conf.CryptBackendName != "" {
-		if err = rcsnooper.initCrypt(conf.CryptBackendName); err != nil {
+		if err = rcsnooper.initCrypt(conf.CryptBackendName, conf.DriveBackendName); err != nil {
 			err = fmt.Errorf("failed to initialize the crypt backend: %w", err)
 			return
 		}

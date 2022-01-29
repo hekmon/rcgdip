@@ -17,27 +17,9 @@ const (
 	scopePrefix = "https://www.googleapis.com/auth/"
 )
 
-func New(ctx context.Context, driveConfig rcsnooper.DriveBackend) (c *Controller, err error) {
-	c = &Controller{
-		ctx:          ctx,
-		folderRootID: driveConfig.RootFolderID,
-		teamDrive:    driveConfig.TeamDrive,
-	}
-	// OAuth2 configuration
-	oauthConf := &oauth2.Config{
-		Scopes:       []string{scopePrefix + driveConfig.Scope},
-		Endpoint:     google.Endpoint,
-		ClientID:     driveConfig.ClientID,
-		ClientSecret: driveConfig.ClientSecret,
-		// RedirectURL:  oauthutil.TitleBarRedirectURL,
-	}
-	client := oauthConf.Client(ctx, driveConfig.Token)
-	// Init Drive client
-	if c.driveClient, err = drive.NewService(ctx, option.WithHTTPClient(client)); err != nil {
-		err = fmt.Errorf("unable to initialize Drive client: %w", err)
-		return
-	}
-	return
+type Config struct {
+	Drive     rcsnooper.DriveBackend
+	DecryptFx func(string) (string, error)
 }
 
 type Controller struct {
@@ -45,9 +27,35 @@ type Controller struct {
 	// Google Drive API client
 	driveClient    *drive.Service
 	startPageToken string
-	// Config
+	// Drive Config
 	folderRootID string
 	teamDrive    string
+	// Decrypt
+	decrypt func(string) (string, error)
+}
+
+func New(ctx context.Context, conf Config) (c *Controller, err error) {
+	c = &Controller{
+		ctx:          ctx,
+		folderRootID: conf.Drive.RootFolderID,
+		teamDrive:    conf.Drive.TeamDrive,
+		decrypt:      conf.DecryptFx,
+	}
+	// OAuth2 configuration
+	oauthConf := &oauth2.Config{
+		Scopes:       []string{scopePrefix + conf.Drive.Scope},
+		Endpoint:     google.Endpoint,
+		ClientID:     conf.Drive.ClientID,
+		ClientSecret: conf.Drive.ClientSecret,
+		// RedirectURL:  oauthutil.TitleBarRedirectURL,
+	}
+	client := oauthConf.Client(ctx, conf.Drive.Token)
+	// Init Drive client
+	if c.driveClient, err = drive.NewService(ctx, option.WithHTTPClient(client)); err != nil {
+		err = fmt.Errorf("unable to initialize Drive client: %w", err)
+		return
+	}
+	return
 }
 
 func (c *Controller) FakeRun() (err error) {
@@ -71,7 +79,18 @@ func (c *Controller) FakeRun() (err error) {
 		return
 	}
 	fmt.Println("---- CHANGED FILES ----")
-	fmt.Printf("%+v\n", changesFiles)
+	for _, change := range changesFiles {
+		fmt.Printf("%v %v %v", change.Event, change.Deleted, change.Created)
+		for _, path := range change.Paths {
+			fmt.Printf("\t%s -> ", path)
+			decryptedPath, err := c.decrypt(path)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Print(decryptedPath)
+		}
+		fmt.Println()
+	}
 	fmt.Println("--------")
 	return
 }

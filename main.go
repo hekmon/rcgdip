@@ -1,34 +1,31 @@
 package main
 
-import "fmt"
+import (
+	"context"
+
+	"github.com/hekmon/rcgdip/gdrivewatcher"
+	"github.com/hekmon/rcgdip/rcsnooper"
+)
 
 func main() {
-	// // Initialize RClone snooper
-	// rc, err := rcsnooper.New(rcsnooper.Config{
-	// 	RCloneConfigPath: devrcloneconfigpath,
-	// 	DriveBackendName: devdrivebackendname,
-	// })
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// // Initialize GDrive controller
-	// gd, err := gdrivewatcher.New(context.TODO(), rc.Drive)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// if err = gd.FakeRun(); err != nil {
-	// 	panic(err)
-	// }
-
-	rclone()
-
-	// err := CryptInit("DMECrypt:", []string{"Films/Rip 2160p", "Animes"})
-	// if err != nil {
-	// 	panic(fmt.Sprintf("cryptinit: %v", err))
-	// }
-
-	err := DriveInit("DME")
+	// Initialize RClone snooper
+	rc, err := rcsnooper.New(rcsnooper.Config{
+		RCloneConfigPath: devrcloneconfigpath,
+		DriveBackendName: devdrivebackendname,
+		CryptBackendName: devcryptbackendname,
+	})
 	if err != nil {
-		panic(fmt.Sprintf("driveinit: %v", err))
+		panic(err)
+	}
+	// Initialize GDrive controller
+	gd, err := gdrivewatcher.New(context.TODO(), gdrivewatcher.Config{
+		Drive:     rc.Drive,
+		DecryptFx: rc.CryptDecode,
+	})
+	if err != nil {
+		panic(err)
+	}
+	if err = gd.FakeRun(); err != nil {
+		panic(err)
 	}
 }

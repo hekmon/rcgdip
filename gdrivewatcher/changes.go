@@ -37,7 +37,11 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 	}
 	fmt.Println("---- CHANGES ----")
 	for _, change := range changes {
-		fmt.Printf("%+v\n%+v\n\n", *change, *change.File)
+		fmt.Printf("%+v\n", *change)
+		if change.File != nil {
+			fmt.Printf("%+v\n", *change.File)
+		}
+		fmt.Println()
 	}
 	fmt.Println("--------")
 	// Build the index with parents for further path computation
@@ -72,7 +76,7 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 		changesReq.SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.teamDrive)
 	}
 	{
-		// Dev
+		// // Dev
 		// changesReq.PageSize(1)
 		// changesReq.Fields(googleapi.Field("*"))
 	}
