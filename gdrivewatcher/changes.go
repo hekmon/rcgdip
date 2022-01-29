@@ -3,7 +3,6 @@ package gdrivewatcher
 import (
 	"errors"
 	"fmt"
-	"path"
 	"time"
 
 	"google.golang.org/api/drive/v3"
@@ -18,7 +17,7 @@ const (
 type fileChange struct {
 	Event   time.Time
 	Deleted bool
-	Paths   []string
+	Paths   []driveFilePath
 	Created time.Time
 }
 
@@ -47,20 +46,25 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 		err = fmt.Errorf("failed to process the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	// If we have a custom root folder ID, filter the list with all files not having a path including it
-	// TODO
 	// Transforme each change into a suitable file event
 	changedFiles = make([]fileChange, 0, len(changes))
 	var (
 		createdTime time.Time
 		changeTime  time.Time
-		paths       []string
+		paths       []driveFilePath
 	)
 	for _, change := range changes {
 		// Skip if the change is drive metadata related or not a file
 		if change.ChangeType != "file" || change.File.MimeType == folderMimeType {
 			continue
 		}
+		// Compute possible paths (bottom up)
+		if paths, err = generatePaths(change.FileId, index); err != nil {
+			err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+			return
+		}
+		// If we have a custom root folder ID, the path not underneeth
+		// TODO
 		// Convert times
 		if changeTime, err = time.Parse(time.RFC3339, change.Time); err != nil {
 			err = fmt.Errorf("failed to convert change time for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
@@ -68,11 +72,6 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 		}
 		if createdTime, err = time.Parse(time.RFC3339, change.File.CreatedTime); err != nil {
 			err = fmt.Errorf("failed to convert create time for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
-			return
-		}
-		// Compute possible paths
-		if paths, err = generatePaths(change.FileId, index); err != nil {
-			err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
 			return
 		}
 		// Save up the consolidated info for return collection
@@ -219,67 +218,5 @@ func (c *Controller) getfilesIndexInfos(fileID string) (infos *filesIndexInfos, 
 		Folder:  filesIndexInfoss.MimeType == folderMimeType,
 		Parents: filesIndexInfoss.Parents,
 	}
-	return
-}
-
-func generatePaths(fileID string, filesIndex filesIndex) (buildedPaths []string, err error) {
-	// Get all paths breaken down by elements in bottom up
-	reversedPathsElems, err := generatePathsLookup(fileID, filesIndex)
-	if err != nil {
-		return
-	}
-	// For each path, compute the merged in order path
-	buildedPaths = make([]string, len(reversedPathsElems))
-	for reversedPathElemsIndex, reversedPathElems := range reversedPathsElems {
-		// Inverse the stack
-		orderedElems := make([]string, len(reversedPathElems))
-		for index, elem := range reversedPathElems {
-			orderedElems[len(reversedPathElems)-1-index] = elem
-		}
-		// Build the path
-		buildedPaths[reversedPathElemsIndex] = path.Join(orderedElems...)
-	}
-	return
-}
-
-func generatePathsLookup(fileID string, filesIndex filesIndex) (buildedPaths [][]string, err error) {
-	// Obtain infos for current fileID
-	filesIndexInfoss, found := filesIndex[fileID]
-	if !found {
-		err = fmt.Errorf("fileID '%s' not found", fileID)
-		return
-	}
-	// Stop if no parent, we have reached root folder
-	if len(filesIndexInfoss.Parents) == 0 {
-		return
-	}
-	// Follow the white rabbit
-	buildedPaths = make([][]string, len(filesIndexInfoss.Parents))
-	var (
-		parentPaths [][]string
-		currentPath []string
-	)
-	for parentIndex, parent := range filesIndexInfoss.Parents {
-		// Get paths for this parent
-		if parentPaths, err = generatePathsLookup(parent, filesIndex); err != nil {
-			err = fmt.Errorf("failed to lookup parent path for folderID '%s': %w", parent, err)
-			return
-		}
-		// If parent is root folder, just add ourself in this path
-		if parentPaths == nil {
-			buildedPaths[parentIndex] = []string{filesIndexInfoss.Name}
-			continue
-		}
-		// Else add paths to final return while prefixing with current file/folder name
-		for _, parentPath := range parentPaths {
-			currentPath = make([]string, len(parentPath)+1)
-			currentPath[0] = filesIndexInfoss.Name
-			for parentPathElemIndex, parentPathElem := range parentPath {
-				currentPath[parentPathElemIndex+1] = parentPathElem
-			}
-			buildedPaths[parentIndex] = currentPath
-		}
-	}
-	// All parents paths explored
 	return
 }
