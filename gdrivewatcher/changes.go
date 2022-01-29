@@ -17,7 +17,7 @@ const (
 type fileChange struct {
 	Event   time.Time
 	Deleted bool
-	Paths   []driveFilePath
+	Paths   []string
 	Created time.Time
 }
 
@@ -43,44 +43,20 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 	// Build the index with parents for further path computation
 	index, err := c.buildIndex(changes)
 	if err != nil {
-		err = fmt.Errorf("failed to process the %d changes retreived: %w", len(changes), err)
+		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	// Transforme each change into a suitable file event
+	// Transforme each change into a suitable file event if it is a match
 	changedFiles = make([]fileChange, 0, len(changes))
-	var (
-		createdTime time.Time
-		changeTime  time.Time
-		paths       []driveFilePath
-	)
+	var fc *fileChange
 	for _, change := range changes {
-		// Skip if the change is drive metadata related or not a file
-		if change.ChangeType != "file" || change.File.MimeType == folderMimeType {
-			continue
-		}
-		// Compute possible paths (bottom up)
-		if paths, err = generatePaths(change.FileId, index); err != nil {
-			err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+		if fc, err = c.processChange(change, index); err != nil {
+			err = fmt.Errorf("failed to process the %d changes retreived: %w", len(changes), err)
 			return
 		}
-		// If we have a custom root folder ID, the path not underneeth
-		// TODO
-		// Convert times
-		if changeTime, err = time.Parse(time.RFC3339, change.Time); err != nil {
-			err = fmt.Errorf("failed to convert change time for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
-			return
+		if fc != nil {
+			changedFiles = append(changedFiles, *fc)
 		}
-		if createdTime, err = time.Parse(time.RFC3339, change.File.CreatedTime); err != nil {
-			err = fmt.Errorf("failed to convert create time for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
-			return
-		}
-		// Save up the consolidated info for return collection
-		changedFiles = append(changedFiles, fileChange{
-			Event:   changeTime,
-			Deleted: change.Removed || change.File.Trashed,
-			Created: createdTime,
-			Paths:   paths,
-		})
 	}
 	return
 }
@@ -217,6 +193,43 @@ func (c *Controller) getfilesIndexInfos(fileID string) (infos *filesIndexInfos, 
 		Name:    filesIndexInfoss.Name,
 		Folder:  filesIndexInfoss.MimeType == folderMimeType,
 		Parents: filesIndexInfoss.Parents,
+	}
+	return
+}
+
+func (c *Controller) processChange(change *drive.Change, index filesIndex) (fc *fileChange, err error) {
+	// Skip if the change is drive metadata related or not a file
+	if change.ChangeType != "file" || change.File.MimeType == folderMimeType {
+		return
+	}
+	// Compute possible paths (bottom up)
+	reversedPaths, err := generateReversePaths(change.FileId, index)
+	if err != nil {
+		err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+		return
+	}
+	// Reverse the paths  (from bottom up to top down) to be exploitable
+	validPaths := make([]string, len(reversedPaths))
+	for index, reversedPath := range reversedPaths {
+		validPaths[index] = reversedPath.Reverse().Path()
+	}
+	// Convert times
+	changeTime, err := time.Parse(time.RFC3339, change.Time)
+	if err != nil {
+		err = fmt.Errorf("failed to convert change time for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+		return
+	}
+	createdTime, err := time.Parse(time.RFC3339, change.File.CreatedTime)
+	if err != nil {
+		err = fmt.Errorf("failed to convert create time for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+		return
+	}
+	// Save up the consolidated info for return collection
+	fc = &fileChange{
+		Event:   changeTime,
+		Deleted: change.Removed || change.File.Trashed,
+		Created: createdTime,
+		Paths:   validPaths,
 	}
 	return
 }

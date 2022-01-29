@@ -25,12 +25,12 @@ func (dfp driveFilePath) Path() string {
 	return path.Join(names...)
 }
 
-func (dfp *driveFilePath) Reverse() {
-	reversed := make(driveFilePath, len(*dfp))
-	for index, elem := range *dfp {
-		reversed[len(*dfp)-1-index] = elem
+func (dfp driveFilePath) Reverse() (reversed driveFilePath) {
+	reversed = make(driveFilePath, len(dfp))
+	for index, elem := range dfp {
+		reversed[len(dfp)-1-index] = elem
 	}
-	dfp = &reversed
+	return
 }
 
 type driveFilePathElem struct {
@@ -38,7 +38,7 @@ type driveFilePathElem struct {
 	Name string
 }
 
-func generatePaths(fileID string, filesIndex filesIndex) (buildedPaths []driveFilePath, err error) {
+func generateReversePaths(fileID string, filesIndex filesIndex) (buildedPaths []driveFilePath, err error) {
 	// Obtain infos for current fileID
 	fileInfos, found := filesIndex[fileID]
 	if !found {
@@ -57,7 +57,7 @@ func generatePaths(fileID string, filesIndex filesIndex) (buildedPaths []driveFi
 	)
 	for parentIndex, parent := range fileInfos.Parents {
 		// Get paths for this parent
-		if parentPaths, err = generatePaths(parent, filesIndex); err != nil {
+		if parentPaths, err = generateReversePaths(parent, filesIndex); err != nil {
 			err = fmt.Errorf("failed to lookup parent path for folderID '%s': %w", parent, err)
 			return
 		}
