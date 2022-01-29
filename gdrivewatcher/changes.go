@@ -55,7 +55,9 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 		err = fmt.Errorf("failed to process the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	// Let's compute paths for each file change
+	// If we have a custom root folder ID, filter the list with all files not having a path including it
+	// TODO
+	// Transforme each change into a suitable file event
 	changedFiles = make([]fileChange, 0, len(changes))
 	var (
 		createdTime time.Time
@@ -115,25 +117,25 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 		err = fmt.Errorf("failed to execute the API query for changes list: %w", err)
 		return
 	}
-	// Extract changes
+	// Extract changes from answer
 	changes = changeList.Changes
-	// Are we the last page ?
-	if changeList.NextPageToken == "" {
-		if changeList.NewStartPageToken == "" {
-			err = errors.New("end of changelist should contain NewStartPageToken")
-		} else {
-			// save new start token for next run
-			c.startPageToken = changeList.NewStartPageToken
+	// Is there any pages left ?
+	if changeList.NextPageToken != "" {
+		var nextPagesChanges []*drive.Change
+		if nextPagesChanges, err = c.fetchChanges(changeList.NextPageToken); err != nil {
+			err = fmt.Errorf("failed to get change list next page: %w", err)
+			return
 		}
+		changes = append(changes, nextPagesChanges...)
 		return
 	}
-	// If not, handle next pages recursively
-	var nextPagesChanges []*drive.Change
-	if nextPagesChanges, err = c.fetchChanges(changeList.NextPageToken); err != nil {
-		err = fmt.Errorf("failed to get change list next page: %w", err)
-		return
+	// We are the last page of results
+	if changeList.NewStartPageToken != "" {
+		// save new start token for next run
+		c.startPageToken = changeList.NewStartPageToken
+	} else {
+		err = errors.New("end of changelist should contain NewStartPageToken")
 	}
-	changes = append(changes, nextPagesChanges...)
 	return
 }
 
@@ -151,9 +153,9 @@ func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err 
 			Folder:  change.File.MimeType == folderMimeType,
 			Parents: change.File.Parents,
 		}
-		// Mark its parent for search
+		// Add its parents for search
 		for _, parent := range change.File.Parents {
-			index[parent] = nil // mark for search
+			index[parent] = nil
 		}
 	}
 	// Found out all missing parents infos
