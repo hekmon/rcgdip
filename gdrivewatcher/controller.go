@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hekmon/rcgdip/rcsnooper"
+	"github.com/hekmon/rcgdip/gdrivewatcher/rcsnooper"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -18,38 +18,39 @@ const (
 )
 
 type Config struct {
-	Drive     rcsnooper.DriveBackend
-	DecryptFx func(string) (string, error)
+	RClone rcsnooper.Config
 }
 
 type Controller struct {
 	ctx context.Context
+	// RClone Snooper
+	rc *rcsnooper.Controller
 	// Google Drive API client
 	driveClient    *drive.Service
 	startPageToken string
-	// Drive Config
-	folderRootID string
-	teamDrive    string
-	// Decrypt
-	decrypt func(string) (string, error)
 }
 
 func New(ctx context.Context, conf Config) (c *Controller, err error) {
-	c = &Controller{
-		ctx:          ctx,
-		folderRootID: conf.Drive.RootFolderID,
-		teamDrive:    conf.Drive.TeamDrive,
-		decrypt:      conf.DecryptFx,
+	// First we initialize the RClone config snooper
+	rc, err := rcsnooper.New(conf.RClone)
+	if err != nil {
+		err = fmt.Errorf("failed to initialize the RClone controller: %w", err)
+		return
 	}
-	// OAuth2 configuration
+	// Then we initialize ourself
+	c = &Controller{
+		ctx: ctx,
+		rc:  rc,
+	}
+	// Prepare the OAuth2 configuration
 	oauthConf := &oauth2.Config{
-		Scopes:       []string{scopePrefix + conf.Drive.Scope},
+		Scopes:       []string{scopePrefix + rc.Drive.Scope},
 		Endpoint:     google.Endpoint,
-		ClientID:     conf.Drive.ClientID,
-		ClientSecret: conf.Drive.ClientSecret,
+		ClientID:     rc.Drive.ClientID,
+		ClientSecret: rc.Drive.ClientSecret,
 		// RedirectURL:  oauthutil.TitleBarRedirectURL,
 	}
-	client := oauthConf.Client(ctx, conf.Drive.Token)
+	client := oauthConf.Client(ctx, rc.Drive.Token)
 	// Init Drive client
 	if c.driveClient, err = drive.NewService(ctx, option.WithHTTPClient(client)); err != nil {
 		err = fmt.Errorf("unable to initialize Drive client: %w", err)
@@ -61,8 +62,8 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 func (c *Controller) FakeRun() (err error) {
 	// Dev: fake init
 	changesReq := c.driveClient.Changes.GetStartPageToken().Context(c.ctx)
-	if c.teamDrive != "" {
-		changesReq.SupportsAllDrives(true).DriveId(c.teamDrive)
+	if c.rc.Drive.TeamDrive != "" {
+		changesReq.SupportsAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
 	}
 	changesStart, err := changesReq.Do()
 	if err != nil {
@@ -83,7 +84,7 @@ func (c *Controller) FakeRun() (err error) {
 		fmt.Printf("%v %v %v", change.Event, change.Deleted, change.Created)
 		for _, path := range change.Paths {
 			fmt.Printf("\t%s -> ", path)
-			decryptedPath, err := c.decrypt(path)
+			decryptedPath, err := c.rc.CryptCipher.DecryptFileName(path)
 			if err != nil {
 				panic(err)
 			}

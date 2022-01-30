@@ -18,7 +18,7 @@ type Config struct {
 type Controller struct {
 	// rclone config
 	Drive       DriveBackend
-	cryptCipher *crypt.Cipher
+	CryptCipher *crypt.Cipher
 }
 
 func New(conf Config) (rcsnooper *Controller, err error) {

@@ -3,7 +3,6 @@ module github.com/hekmon/rcgdip
 go 1.17
 
 require (
-	github.com/Unknwon/goconfig v0.0.0-20200908083735-df7de6a44db8
 	github.com/rclone/rclone v1.57.0
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	google.golang.org/api v0.65.0
@@ -12,6 +11,7 @@ require (
 require (
 	cloud.google.com/go/compute v1.1.0 // indirect
 	github.com/StackExchange/wmi v1.2.1 // indirect
+	github.com/Unknwon/goconfig v0.0.0-20200908083735-df7de6a44db8 // indirect
 	github.com/abbot/go-http-auth v0.4.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect

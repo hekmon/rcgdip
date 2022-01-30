@@ -72,8 +72,8 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	// Build Request
 	changesReq := c.driveClient.Changes.List(nextPageToken).Context(c.ctx)
 	changesReq.IncludeRemoved(true)
-	if c.teamDrive != "" {
-		changesReq.SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.teamDrive)
+	if c.rc.Drive.TeamDrive != "" {
+		changesReq.SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
 	}
 	{
 		// // Dev
@@ -191,7 +191,7 @@ func (c *Controller) getfilesIndexInfos(fileID string) (infos *filesIndexInfos, 
 	// Build request
 	fileRequest := c.driveClient.Files.Get(fileID).Context(c.ctx)
 	fileRequest.Fields(googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"))
-	if c.teamDrive != "" {
+	if c.rc.Drive.TeamDrive != "" {
 		fileRequest.SupportsAllDrives(true)
 	}
 	// Execute request
@@ -224,8 +224,8 @@ func (c *Controller) processChange(change *drive.Change, index filesIndex) (fc *
 	validPaths := make([]string, 0, len(reversedPaths))
 	for _, reversedPath := range reversedPaths {
 		// If custom root folder id, search it and rewrite paths with new root
-		if c.folderRootID != "" {
-			if !reversedPath.CutAt(c.folderRootID) {
+		if c.rc.Drive.RootFolderID != "" {
+			if !reversedPath.CutAt(c.rc.Drive.RootFolderID) {
 				fmt.Printf("path '%s' does not contain the custom root folder id, discarding it\n", reversedPath.Reverse().Path())
 				continue // root folder id not found in this path, skipping
 			}
