@@ -7,6 +7,7 @@ import (
 
 	"github.com/hekmon/rcgdip/gdrivewatcher/rcsnooper"
 
+	"github.com/hekmon/hllogger"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/drive/v3"
@@ -19,10 +20,13 @@ const (
 
 type Config struct {
 	RClone rcsnooper.Config
+	Logger *hllogger.HlLogger
 }
 
 type Controller struct {
-	ctx context.Context
+	// Global
+	ctx    context.Context
+	logger *hllogger.HlLogger
 	// RClone Snooper
 	rc *rcsnooper.Controller
 	// Google Drive API client
@@ -39,8 +43,9 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 	}
 	// Then we initialize ourself
 	c = &Controller{
-		ctx: ctx,
-		rc:  rc,
+		ctx:    ctx,
+		logger: conf.Logger,
+		rc:     rc,
 	}
 	// Prepare the OAuth2 configuration
 	oauthConf := &oauth2.Config{
@@ -53,7 +58,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 	client := oauthConf.Client(ctx, rc.Drive.Token)
 	// Init Drive client
 	if c.driveClient, err = drive.NewService(ctx, option.WithHTTPClient(client)); err != nil {
-		err = fmt.Errorf("unable to initialize Drive client: %w", err)
+		err = fmt.Errorf("unable to initialize Drive API client: %w", err)
 		return
 	}
 	return

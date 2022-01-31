@@ -31,26 +31,21 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 		}
 	}()
 	// Get changes
+	start := time.Now()
 	changes, err := c.fetchChanges(c.startPageToken)
 	if err != nil {
 		err = fmt.Errorf("failed to get all changes recursively: %w", err)
 		return
 	}
-	fmt.Println("---- CHANGES ----")
-	for _, change := range changes {
-		fmt.Printf("%+v\n", *change)
-		if change.File != nil {
-			fmt.Printf("%+v\n", *change.File)
-		}
-		fmt.Println()
-	}
-	fmt.Println("--------")
+	c.logger.Debugf("[Drive] %d raw change(s) recovered in %v:", len(changes), time.Since(start))
 	// Build the index with parents for further path computation
+	indexStart := time.Now()
 	index, err := c.buildIndex(changes)
 	if err != nil {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
+	c.logger.Debugf("[Drive] index builded in %v, containing %d nodes", time.Since(indexStart), len(index))
 	// Process each event
 	changedFiles = make([]fileChange, 0, len(changes))
 	var fc *fileChange
@@ -65,11 +60,16 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 			changedFiles = append(changedFiles, *fc)
 		}
 	}
+	if len(changedFiles) != len(changes) {
+		c.logger.Debugf("[Drive] filtered out %d change(s)", len(changes)-len(changedFiles))
+	}
+	// Done
+	c.logger.Infof("[Drive] %d change(s) compiled in %v", len(changedFiles), time.Since(start))
 	return
 }
 
 func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change, err error) {
-	fmt.Println("change request")
+	c.logger.Debug("[Drive] Getting a new page of changes...")
 	// Build Request
 	changesReq := c.driveClient.Changes.List(nextPageToken).Context(c.ctx)
 	changesReq.IncludeRemoved(true)
@@ -89,15 +89,18 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 			googleapi.Field("changes/file/name"), googleapi.Field("changes/file/mimeType"), googleapi.Field("changes/file/trashed"), googleapi.Field("changes/file/parents"), googleapi.Field("changes/file/createdTime"))
 	}
 	// Execute Request
+	start := time.Now()
 	changeList, err := changesReq.Do()
 	if err != nil {
 		err = fmt.Errorf("failed to execute the API query for changes list: %w", err)
 		return
 	}
+	c.logger.Debugf("[Drive] changes page obtained in %v", time.Since(start))
 	// Extract changes from answer
 	changes = changeList.Changes
 	// Is there any pages left ?
 	if changeList.NextPageToken != "" {
+		c.logger.Debug("[Drive] another page of changes is available")
 		var nextPagesChanges []*drive.Change
 		if nextPagesChanges, err = c.fetchChanges(changeList.NextPageToken); err != nil {
 			err = fmt.Errorf("failed to get change list next page: %w", err)
@@ -108,10 +111,17 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	}
 	// We are the last page of results
 	if changeList.NewStartPageToken != "" {
+		c.logger.Debug("[Drive] no more changes pages, recovering the marker for next run")
 		// save new start token for next run
 		c.startPageToken = changeList.NewStartPageToken
 	} else {
 		err = errors.New("end of changelist should contain NewStartPageToken")
+	}
+	// Done
+	if c.logger.IsDebugShown() {
+		for index, change := range changes {
+			c.logger.Debugf("[Drive] raw change #%d: %+v", index+1, *change)
+		}
 	}
 	return
 }
@@ -148,11 +158,12 @@ func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err 
 		err = fmt.Errorf("failed to recover all parents files infos: %w", err)
 		return
 	}
-	fmt.Println("---- INDEX ----")
-	for fileID, filesIndexInfoss := range index {
-		fmt.Printf("%s: %+v\n", fileID, *filesIndexInfoss)
+	// Done
+	if c.logger.IsDebugShown() {
+		for fileID, filesIndexInfos := range index {
+			c.logger.Debugf("[Drive] index fileID %s: %+v", fileID, *filesIndexInfos)
+		}
 	}
-	fmt.Println("--------")
 	return
 }
 
