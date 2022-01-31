@@ -114,5 +114,6 @@ func (c *Controller) FakeRun() (err error) {
 		fmt.Println()
 	}
 	fmt.Println("--------")
+	c.logger.Debugf("[DriveWatcher] index rootfolderid: %s", c.getRootFolder())
 	return
 }

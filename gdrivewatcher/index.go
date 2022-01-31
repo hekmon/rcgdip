@@ -1,6 +1,7 @@
 package gdrivewatcher
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -34,16 +35,27 @@ func (c *Controller) buildIndex() (err error) {
 	// Build the index with the infos
 	c.index = make(filesIndex, len(files))
 	for _, file := range files {
+		// Add file info to the index
 		c.index[file.Id] = &filesIndexInfos{
 			Name:        file.Name,
 			MimeType:    file.MimeType,
 			Parents:     file.Parents,
 			CreatedTime: file.CreatedTime,
 		}
+		// Mark its parents for search during consolidate (actually all parents are within the listing except... the root folder)
+		for _, parent := range file.Parents {
+			if _, found := c.index[parent]; !found {
+				c.index[parent] = nil
+			}
+		}
 	}
 	// Consolidate (for absolute root folder id)
 	if err = c.consolidateIndex(); err != nil {
 		err = fmt.Errorf("failed to consolidate index after initial build up: %w", err)
+		return
+	}
+	if c.getRootFolder() == "" {
+		err = errors.New("something must have gone wrong during the index building: can not find the root folder fileID")
 		return
 	}
 	// Done
@@ -165,4 +177,13 @@ func (c *Controller) getFileInfo(fileID string) (infos *filesIndexInfos, err err
 		CreatedTime: fii.CreatedTime,
 	}
 	return
+}
+
+func (c *Controller) getRootFolder() string {
+	for id, infos := range c.index {
+		if len(infos.Parents) == 0 {
+			return id
+		}
+	}
+	return ""
 }
