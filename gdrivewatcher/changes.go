@@ -16,6 +16,7 @@ const (
 
 type fileChange struct {
 	Event   time.Time
+	Folder  bool
 	Deleted bool
 	Paths   []string
 	Created time.Time
@@ -252,6 +253,7 @@ func (c *Controller) processChange(change *drive.Change, index filesIndex) (fc *
 	// Save up the consolidated info for return collection
 	fc = &fileChange{
 		Event:   changeTime,
+		Folder:  change.File.MimeType == folderMimeType,
 		Deleted: change.Removed || change.File.Trashed,
 		Created: createdTime,
 		Paths:   validPaths,
