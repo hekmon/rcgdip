@@ -10,12 +10,14 @@ import (
 	"github.com/hekmon/hllogger"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"golang.org/x/time/rate"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 )
 
 const (
-	scopePrefix = "https://www.googleapis.com/auth/"
+	scopePrefix   = "https://www.googleapis.com/auth/"
+	requestPerMin = 300 // https://developers.google.com/docs/api/limits
 )
 
 type Config struct {
@@ -32,6 +34,7 @@ type Controller struct {
 	// Google Drive API client
 	driveClient    *drive.Service
 	startPageToken string
+	limiter        *rate.Limiter
 	// Index related
 	index filesIndex
 }
@@ -45,9 +48,10 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 	}
 	// Then we initialize ourself
 	c = &Controller{
-		ctx:    ctx,
-		logger: conf.Logger,
-		rc:     rc,
+		ctx:     ctx,
+		logger:  conf.Logger,
+		rc:      rc,
+		limiter: rate.NewLimiter(rate.Every(time.Minute/requestPerMin), requestPerMin/3),
 	}
 	// Prepare the OAuth2 configuration
 	oauthConf := &oauth2.Config{

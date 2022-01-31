@@ -40,7 +40,7 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 	c.logger.Debugf("[DriveWatcher] %d raw change(s) recovered in %v", len(changes), time.Since(start))
 	// Build the index with parents for further path computation
 	indexStart := time.Now()
-	if err = c.updateIndex(changes); err != nil {
+	if err = c.incorporateChanges(changes); err != nil {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
@@ -90,6 +90,10 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 			googleapi.Field("changes/file/name"), googleapi.Field("changes/file/mimeType"), googleapi.Field("changes/file/trashed"), googleapi.Field("changes/file/parents"), googleapi.Field("changes/file/createdTime"))
 	}
 	// Execute Request
+	if err = c.limiter.Wait(c.ctx); err != nil {
+		err = fmt.Errorf("can not execute API request, waiting for the limiter failed: %w", err)
+		return
+	}
 	start := time.Now()
 	changeList, err := changesReq.Do()
 	if err != nil {
@@ -127,7 +131,7 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	return
 }
 
-func (c *Controller) updateIndex(changes []*drive.Change) (err error) {
+func (c *Controller) incorporateChanges(changes []*drive.Change) (err error) {
 	c.logger.Debugf("[DriveWatcher] start building the index based on %d change(s)", len(changes))
 	// Build the file index starting by infos contained in the change list
 	for _, change := range changes {
@@ -160,70 +164,11 @@ func (c *Controller) updateIndex(changes []*drive.Change) (err error) {
 		}
 	}
 	// Found out all missing parents infos
-	if err = c.getFilesParentsInfo(); err != nil {
+	if err = c.consolidateIndex(); err != nil {
 		err = fmt.Errorf("failed to recover all parents files infos: %w", err)
 		return
 	}
 	// Done
-	return
-}
-
-func (c *Controller) getFilesParentsInfo() (err error) {
-	var runWithSearch, found bool
-	// Check all fileIDs
-	for fileID, fileInfo := range c.index {
-		// Is this fileIDs already searched ?
-		if fileInfo != nil {
-			continue
-		}
-		// Get file infos
-		if fileInfo, err = c.getfilesIndexInfos(fileID); err != nil {
-			err = fmt.Errorf("failed to get file info for fileID %s: %w", fileID, err)
-			return
-		}
-		// Save them
-		c.index[fileID] = fileInfo
-		// Prepare its parents for search if unknown
-		for _, parent := range fileInfo.Parents {
-			if _, found = c.index[parent]; !found {
-				c.index[parent] = nil
-			}
-		}
-		// Mark this run as non empty
-		runWithSearch = true
-	}
-	if runWithSearch {
-		// new files infos discovered, let's find their parents too
-		return c.getFilesParentsInfo()
-	}
-	// Every files has been searched and have their info now, time to return for real
-	return
-}
-
-func (c *Controller) getfilesIndexInfos(fileID string) (infos *filesIndexInfos, err error) {
-	c.logger.Debugf("[DriveWatcher] requesting information about fileID %s...", fileID)
-	// Build request
-	fileRequest := c.driveClient.Files.Get(fileID).Context(c.ctx)
-	fileRequest.Fields(googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"), googleapi.Field("trashed"), googleapi.Field("createdTime"))
-	if c.rc.Drive.TeamDrive != "" {
-		fileRequest.SupportsAllDrives(true)
-	}
-	// Execute request
-	start := time.Now()
-	fii, err := fileRequest.Do()
-	if err != nil {
-		err = fmt.Errorf("failed to execute file info get API query: %w", err)
-		return
-	}
-	c.logger.Debugf("[DriveWatcher] information about fileID %s recovered in %v", fileID, time.Since(start))
-	// Extract data
-	infos = &filesIndexInfos{
-		Name:        fii.Name,
-		MimeType:    fii.MimeType,
-		Parents:     fii.Parents,
-		Trashed:     fii.Trashed,
-		CreatedTime: fii.CreatedTime,
-	}
 	return
 }
 
