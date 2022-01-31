@@ -2,7 +2,9 @@ package gdrivewatcher
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/hekmon/rcgdip/gdrivewatcher/rcsnooper"
@@ -115,5 +117,19 @@ func (c *Controller) FakeRun() (err error) {
 	}
 	fmt.Println("--------")
 	c.logger.Debugf("[DriveWatcher] index rootfolderid: %s", c.getRootFolder())
+
+	// Dump index
+	fd, err := os.OpenFile("watcher_index.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640)
+	if err != nil {
+		return fmt.Errorf("failed to save index: %w", err)
+	}
+	defer fd.Close()
+	encoder := json.NewEncoder(fd)
+	if c.logger.IsDebugShown() {
+		encoder.SetIndent("", "    ")
+	}
+	if err = encoder.Encode(c.index); err != nil {
+		return fmt.Errorf("failed to encode the index as JSON: %w", err)
+	}
 	return
 }

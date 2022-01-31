@@ -44,7 +44,7 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	c.logger.Debugf("[DriveWatcher] index updating in %v, actually containing %d nodes", time.Since(indexStart), len(c.index))
+	c.logger.Debugf("[DriveWatcher] index updating in %v, currently containing %d nodes", time.Since(indexStart), len(c.index))
 	// Process each event
 	changedFiles = make([]fileChange, 0, len(changes))
 	var fc *fileChange
@@ -177,7 +177,7 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 	if change.ChangeType != "file" {
 		return
 	}
-	// In case the file metadata was not provided within the change, extract info from our index
+	// In case the file metadata was not provided within the change, extract info from our index (main case: removal)
 	var (
 		fileName     string
 		fileMimeType string
