@@ -63,8 +63,10 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 	if len(changedFiles) != len(changes) {
 		c.logger.Debugf("[DriveWatcher] filtered out %d change(s) that was not a file change", len(changes)-len(changedFiles))
 	}
+	// Cleaning the index
+	// TODO
 	// Done
-	c.logger.Infof("[DriveWatcher] %d change(s) compiled in %v", len(changedFiles), time.Since(start))
+	c.logger.Infof("[DriveWatcher] %d valid change(s) compiled in %v", len(changedFiles), time.Since(start))
 	return
 }
 
@@ -145,23 +147,28 @@ func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err 
 		if change.ChangeType != "file" {
 			continue
 		}
+		// If file deleted, we won't have any information. To make it valid, we must have it within our index
+		if change.Removed {
+			c.logger.Warningf("[DriveWatcher] file change for fileID %s is removal, we won't have any data about it anymore", change.FileId) // TODO remove with statefull index
+			continue
+		}
 		// Sometimes the file field come back empty, no idea why
 		if change.File == nil {
 			c.logger.Warningf("[DriveWatcher] file change for fileID %s had its file metadata empty, adding it to the lookup list", change.FileId)
 			index[change.FileId] = nil
-		} else {
-			// Extract known info for this file
-			index[change.FileId] = &filesIndexInfos{
-				Name:        change.File.Name,
-				MimeType:    change.File.MimeType,
-				Parents:     change.File.Parents,
-				Trashed:     change.File.Trashed,
-				CreatedTime: change.File.CreatedTime,
-			}
-			// Add its parents for search
-			for _, parent := range change.File.Parents {
-				index[parent] = nil
-			}
+			continue
+		}
+		// Extract known info for this file
+		index[change.FileId] = &filesIndexInfos{
+			Name:        change.File.Name,
+			MimeType:    change.File.MimeType,
+			Parents:     change.File.Parents,
+			Trashed:     change.File.Trashed,
+			CreatedTime: change.File.CreatedTime,
+		}
+		// Add its parents for search
+		for _, parent := range change.File.Parents {
+			index[parent] = nil
 		}
 	}
 	// Found out all missing parents infos
@@ -260,7 +267,12 @@ func (c *Controller) processChange(change *drive.Change, index filesIndex) (fc *
 			found bool
 		)
 		if fi, found = index[change.FileId]; !found {
-			err = fmt.Errorf("change does not contain file metadata and its fileID '%s' was not found within the index", change.FileId)
+			if change.Removed {
+				c.logger.Warningf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor will be skipped",
+					change.FileId)
+			} else {
+				err = fmt.Errorf("change does not contain file metadata and its fileID '%s' was not found within the index", change.FileId)
+			}
 			return
 		}
 		fileName = fi.Name
