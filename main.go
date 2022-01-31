@@ -21,8 +21,13 @@ func main() {
 	_, systemdLaunched = systemd.GetInvocationID()
 
 	// Initialize the logger
+	var loggerFlags int
+	if !systemdLaunched {
+		loggerFlags = hllogger.Ltime | hllogger.Ldate
+	}
 	logger = hllogger.New(os.Stdout, &hllogger.Config{
 		LogLevel:              hllogger.Debug,
+		LoggerFlags:           loggerFlags,
 		SystemdJournaldCompat: systemdLaunched,
 	})
 
@@ -39,6 +44,8 @@ func main() {
 	if err != nil {
 		logger.Fatalf(1, "[Main] Failed to initialize the Google Drive watcher: %s", err.Error())
 	}
+	logger.Info("[Main] Google Drive watcher started")
+
 	if err = gd.FakeRun(); err != nil {
 		logger.Fatal(1, err.Error())
 	}

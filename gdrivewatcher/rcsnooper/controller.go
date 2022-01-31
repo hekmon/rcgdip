@@ -2,6 +2,7 @@ package rcsnooper
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/rclone/rclone/backend/crypt"
 	"github.com/rclone/rclone/fs"
@@ -16,13 +17,16 @@ type Config struct {
 }
 
 type Controller struct {
+	conf Config
 	// rclone config
 	Drive       DriveBackend
 	CryptCipher *crypt.Cipher
 }
 
 func New(conf Config) (rcsnooper *Controller, err error) {
-	rcsnooper = new(Controller)
+	rcsnooper = &Controller{
+		conf: conf,
+	}
 	// Load RClone config into rclone modules
 	if err = rcsnooper.loadRCloneConfig(conf.RCloneConfigPath); err != nil {
 		err = fmt.Errorf("can not get RClone configuration: %w", err)
@@ -61,4 +65,23 @@ func (c *Controller) loadRCloneConfig(configPath string) (err error) {
 		Name: "drive",
 	})
 	return
+}
+
+func (c *Controller) Summary() string {
+	b := make([]string, 0, 4)
+
+	b = append(b, fmt.Sprintf("config path: %s", c.conf.RCloneConfigPath))
+	b = append(b, fmt.Sprintf("drive backend: %s", c.conf.DriveBackendName))
+	if c.Drive.RootFolderID != "" {
+		b = append(b, fmt.Sprintf("custom root folderID: %s", c.Drive.RootFolderID))
+	} else {
+		b = append(b, "no custom root folderID")
+	}
+	if c.Drive.TeamDrive != "" {
+		b = append(b, fmt.Sprintf("team drive: %s", c.Drive.TeamDrive))
+	} else {
+		b = append(b, "no team drive")
+	}
+
+	return strings.Join(b, ", ")
 }

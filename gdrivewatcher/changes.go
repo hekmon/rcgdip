@@ -37,7 +37,7 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 		err = fmt.Errorf("failed to get all changes recursively: %w", err)
 		return
 	}
-	c.logger.Debugf("[Drive] %d raw change(s) recovered in %v:", len(changes), time.Since(start))
+	c.logger.Debugf("[DriveWatcher] %d raw change(s) recovered in %v", len(changes), time.Since(start))
 	// Build the index with parents for further path computation
 	indexStart := time.Now()
 	index, err := c.buildIndex(changes)
@@ -45,7 +45,7 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	c.logger.Debugf("[Drive] index builded in %v, containing %d nodes", time.Since(indexStart), len(index))
+	c.logger.Debugf("[DriveWatcher] index builded in %v, containing %d nodes", time.Since(indexStart), len(index))
 	// Process each event
 	changedFiles = make([]fileChange, 0, len(changes))
 	var fc *fileChange
@@ -61,15 +61,15 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 		}
 	}
 	if len(changedFiles) != len(changes) {
-		c.logger.Debugf("[Drive] filtered out %d change(s)", len(changes)-len(changedFiles))
+		c.logger.Debugf("[DriveWatcher] filtered out %d change(s) that was not a file change", len(changes)-len(changedFiles))
 	}
 	// Done
-	c.logger.Infof("[Drive] %d change(s) compiled in %v", len(changedFiles), time.Since(start))
+	c.logger.Infof("[DriveWatcher] %d change(s) compiled in %v", len(changedFiles), time.Since(start))
 	return
 }
 
 func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change, err error) {
-	c.logger.Debug("[Drive] Getting a new page of changes...")
+	c.logger.Debug("[DriveWatcher] getting a new page of changes...")
 	// Build Request
 	changesReq := c.driveClient.Changes.List(nextPageToken).Context(c.ctx)
 	changesReq.IncludeRemoved(true)
@@ -95,12 +95,12 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 		err = fmt.Errorf("failed to execute the API query for changes list: %w", err)
 		return
 	}
-	c.logger.Debugf("[Drive] changes page obtained in %v", time.Since(start))
+	c.logger.Debugf("[DriveWatcher] changes page obtained in %v", time.Since(start))
 	// Extract changes from answer
 	changes = changeList.Changes
 	// Is there any pages left ?
 	if changeList.NextPageToken != "" {
-		c.logger.Debug("[Drive] another page of changes is available")
+		c.logger.Debug("[DriveWatcher] another page of changes is available")
 		var nextPagesChanges []*drive.Change
 		if nextPagesChanges, err = c.fetchChanges(changeList.NextPageToken); err != nil {
 			err = fmt.Errorf("failed to get change list next page: %w", err)
@@ -111,7 +111,7 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	}
 	// We are the last page of results
 	if changeList.NewStartPageToken != "" {
-		c.logger.Debug("[Drive] no more changes pages, recovering the marker for next run")
+		c.logger.Debugf("[DriveWatcher] no more changes pages, recovering the marker for next run: %s", changeList.NewStartPageToken)
 		// save new start token for next run
 		c.startPageToken = changeList.NewStartPageToken
 	} else {
@@ -120,7 +120,7 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	// Done
 	if c.logger.IsDebugShown() {
 		for index, change := range changes {
-			c.logger.Debugf("[Drive] raw change #%d: %+v", index+1, *change)
+			c.logger.Debugf("[DriveWatcher] raw change #%d: %+v", index+1, *change)
 		}
 	}
 	return
@@ -129,12 +129,15 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 type filesIndex map[string]*filesIndexInfos
 
 type filesIndexInfos struct {
-	Name    string
-	Folder  bool
-	Parents []string
+	Name        string
+	MimeType    string
+	Parents     []string
+	Trashed     bool
+	CreatedTime string
 }
 
 func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err error) {
+	c.logger.Debugf("[DriveWatcher] start building the index based on %d change(s)", len(changes))
 	index = make(filesIndex, len(changes))
 	// Build the file index starting by infos contained in the change list
 	for _, change := range changes {
@@ -142,15 +145,23 @@ func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err 
 		if change.ChangeType != "file" {
 			continue
 		}
-		// Extract known info for this file
-		index[change.FileId] = &filesIndexInfos{
-			Name:    change.File.Name,
-			Folder:  change.File.MimeType == folderMimeType,
-			Parents: change.File.Parents,
-		}
-		// Add its parents for search
-		for _, parent := range change.File.Parents {
-			index[parent] = nil
+		// Sometimes the file field come back empty, no idea why
+		if change.File == nil {
+			c.logger.Warningf("[DriveWatcher] file change for fileID %s had its file metadata empty, adding it to the lookup list", change.FileId)
+			index[change.FileId] = nil
+		} else {
+			// Extract known info for this file
+			index[change.FileId] = &filesIndexInfos{
+				Name:        change.File.Name,
+				MimeType:    change.File.MimeType,
+				Parents:     change.File.Parents,
+				Trashed:     change.File.Trashed,
+				CreatedTime: change.File.CreatedTime,
+			}
+			// Add its parents for search
+			for _, parent := range change.File.Parents {
+				index[parent] = nil
+			}
 		}
 	}
 	// Found out all missing parents infos
@@ -161,7 +172,7 @@ func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err 
 	// Done
 	if c.logger.IsDebugShown() {
 		for fileID, filesIndexInfos := range index {
-			c.logger.Debugf("[Drive] index fileID %s: %+v", fileID, *filesIndexInfos)
+			c.logger.Debugf("[DriveWatcher] index fileID %s: %+v", fileID, *filesIndexInfos)
 		}
 	}
 	return
@@ -170,20 +181,20 @@ func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err 
 func (c *Controller) getFilesParentsInfo(files filesIndex) (err error) {
 	var runWithSearch, found bool
 	// Check all fileIDs
-	for fileID, filesIndexInfoss := range files {
+	for fileID, fii := range files {
 		// Is this fileIDs already searched ?
-		if filesIndexInfoss != nil {
+		if fii != nil {
 			continue
 		}
 		// Get file infos
-		if filesIndexInfoss, err = c.getfilesIndexInfos(fileID); err != nil {
+		if fii, err = c.getfilesIndexInfos(fileID); err != nil {
 			err = fmt.Errorf("failed to get file info for fileID %s: %w", fileID, err)
 			return
 		}
 		// Save them
-		files[fileID] = filesIndexInfoss
+		files[fileID] = fii
 		// Prepare its parents for search if unknown
-		for _, parent := range filesIndexInfoss.Parents {
+		for _, parent := range fii.Parents {
 			if _, found = files[parent]; !found {
 				files[parent] = nil
 			}
@@ -200,36 +211,67 @@ func (c *Controller) getFilesParentsInfo(files filesIndex) (err error) {
 }
 
 func (c *Controller) getfilesIndexInfos(fileID string) (infos *filesIndexInfos, err error) {
+	c.logger.Debugf("[DriveWatcher] requesting information about fileID %s...", fileID)
 	// Build request
 	fileRequest := c.driveClient.Files.Get(fileID).Context(c.ctx)
-	fileRequest.Fields(googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"))
+	fileRequest.Fields(googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"), googleapi.Field("trashed"), googleapi.Field("createdTime"))
 	if c.rc.Drive.TeamDrive != "" {
 		fileRequest.SupportsAllDrives(true)
 	}
 	// Execute request
-	filesIndexInfoss, err := fileRequest.Do()
+	start := time.Now()
+	fii, err := fileRequest.Do()
 	if err != nil {
 		err = fmt.Errorf("failed to execute file info get API query: %w", err)
 		return
 	}
+	c.logger.Debugf("[DriveWatcher] information about fileID %s recovered in %v", fileID, time.Since(start))
 	// Extract data
 	infos = &filesIndexInfos{
-		Name:    filesIndexInfoss.Name,
-		Folder:  filesIndexInfoss.MimeType == folderMimeType,
-		Parents: filesIndexInfoss.Parents,
+		Name:        fii.Name,
+		MimeType:    fii.MimeType,
+		Parents:     fii.Parents,
+		Trashed:     fii.Trashed,
+		CreatedTime: fii.CreatedTime,
 	}
 	return
 }
 
 func (c *Controller) processChange(change *drive.Change, index filesIndex) (fc *fileChange, err error) {
-	// Skip if the change is drive metadata related or not a file
-	if change.ChangeType != "file" || change.File.MimeType == folderMimeType {
+	// Skip if the change is drive metadata related
+	if change.ChangeType != "file" {
 		return
+	}
+	// In case the file metadata was not provided within the change, extract info from our index
+	var (
+		fileName     string
+		fileMimeType string
+		fileTrashed  bool
+		fileCreated  string
+	)
+	if change.File != nil {
+		fileName = change.File.Name
+		fileMimeType = change.File.MimeType
+		fileTrashed = change.File.Trashed
+		fileCreated = change.File.CreatedTime
+	} else {
+		var (
+			fi    *filesIndexInfos
+			found bool
+		)
+		if fi, found = index[change.FileId]; !found {
+			err = fmt.Errorf("change does not contain file metadata and its fileID '%s' was not found within the index", change.FileId)
+			return
+		}
+		fileName = fi.Name
+		fileMimeType = fi.MimeType
+		fileTrashed = fi.Trashed
+		fileCreated = fi.CreatedTime
 	}
 	// Compute possible paths (bottom up)
 	reversedPaths, err := generateReversePaths(change.FileId, index)
 	if err != nil {
-		err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+		err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, fileName, err)
 		return
 	}
 	// Validate and reverse the paths (from bottom up to top down) to be exploitables
@@ -238,7 +280,7 @@ func (c *Controller) processChange(change *drive.Change, index filesIndex) (fc *
 		// If custom root folder id, search it and rewrite paths with new root
 		if c.rc.Drive.RootFolderID != "" {
 			if !reversedPath.CutAt(c.rc.Drive.RootFolderID) {
-				fmt.Printf("path '%s' does not contain the custom root folder id, discarding it\n", reversedPath.Reverse().Path())
+				c.logger.Debugf("[DriveWatcher] path '%s' does not contain the custom root folder id, discarding it", reversedPath.Reverse().Path())
 				continue // root folder id not found in this path, skipping
 			}
 		}
@@ -247,25 +289,25 @@ func (c *Controller) processChange(change *drive.Change, index filesIndex) (fc *
 	}
 	if len(validPaths) == 0 {
 		// no valid path found (because of root folder id) skipping this change
-		fmt.Printf("change for file '%s' does not contain any valid path, discarding it\n", change.File.Name)
+		c.logger.Debugf("[DriveWatcher] change for file '%s' does not contain any valid path, discarding it", fileName)
 		return
 	}
 	// Convert times
 	changeTime, err := time.Parse(time.RFC3339, change.Time)
 	if err != nil {
-		err = fmt.Errorf("failed to convert change time for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+		err = fmt.Errorf("failed to convert change time for fileID %s, name '%s': %w", change.FileId, fileName, err)
 		return
 	}
-	createdTime, err := time.Parse(time.RFC3339, change.File.CreatedTime)
+	createdTime, err := time.Parse(time.RFC3339, fileCreated)
 	if err != nil {
-		err = fmt.Errorf("failed to convert create time for fileID %s, name '%s': %w", change.FileId, change.File.Name, err)
+		err = fmt.Errorf("failed to convert create time for fileID %s, name '%s': %w", change.FileId, fileName, err)
 		return
 	}
 	// Save up the consolidated info for return collection
 	fc = &fileChange{
 		Event:   changeTime,
-		Folder:  change.File.MimeType == folderMimeType,
-		Deleted: change.Removed || change.File.Trashed,
+		Folder:  fileMimeType == folderMimeType,
+		Deleted: change.Removed || fileTrashed,
 		Created: createdTime,
 		Paths:   validPaths,
 	}

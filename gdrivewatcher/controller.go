@@ -61,6 +61,8 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		err = fmt.Errorf("unable to initialize Drive API client: %w", err)
 		return
 	}
+	// Done
+	conf.Logger.Infof("[DriveWatcher] %s", rc.Summary())
 	return
 }
 

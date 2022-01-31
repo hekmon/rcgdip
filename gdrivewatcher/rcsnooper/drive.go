@@ -60,11 +60,7 @@ func (c *Controller) extractDriveBackend(backend string) (err error) {
 	} else {
 		return errors.New("no suitable authentification found (oauth2 or service account)")
 	}
-	if c.Drive.RootFolderID, found = config.Get(rcloneConfigGDriveRootFolderIDKey); !found {
-		fmt.Println("no custom root folder id found")
-	}
-	if c.Drive.TeamDrive, found = config.Get(rcloneConfigGDriveTeameDriveKey); !found {
-		fmt.Println("no team drive found")
-	}
+	c.Drive.RootFolderID, _ = config.Get(rcloneConfigGDriveRootFolderIDKey)
+	c.Drive.TeamDrive, _ = config.Get(rcloneConfigGDriveTeameDriveKey)
 	return
 }
