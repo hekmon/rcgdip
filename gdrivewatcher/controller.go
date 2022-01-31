@@ -32,6 +32,8 @@ type Controller struct {
 	// Google Drive API client
 	driveClient    *drive.Service
 	startPageToken string
+	// Index related
+	index filesIndex
 }
 
 func New(ctx context.Context, conf Config) (c *Controller, err error) {
@@ -77,6 +79,14 @@ func (c *Controller) FakeRun() (err error) {
 		return
 	}
 	c.startPageToken = changesStart.StartPageToken
+
+	// Build the index
+	if err = c.buildIndex(); err != nil {
+		err = fmt.Errorf("failed to build the initial index: %w", err)
+		return
+	}
+
+	// Do stuff
 	fmt.Println("Waiting", 30*time.Second)
 	time.Sleep(30 * time.Second)
 

@@ -38,9 +38,9 @@ type driveFilePathElem struct {
 	Name string
 }
 
-func generateReversePaths(fileID string, filesIndex filesIndex) (buildedPaths []driveFilePath, err error) {
+func (c *Controller) generateReversePaths(fileID string) (buildedPaths []driveFilePath, err error) {
 	// Obtain infos for current fileID
-	fileInfos, found := filesIndex[fileID]
+	fileInfos, found := c.index[fileID]
 	if !found {
 		err = fmt.Errorf("fileID '%s' not found", fileID)
 		return
@@ -57,7 +57,7 @@ func generateReversePaths(fileID string, filesIndex filesIndex) (buildedPaths []
 	)
 	for parentIndex, parent := range fileInfos.Parents {
 		// Get paths for this parent
-		if parentPaths, err = generateReversePaths(parent, filesIndex); err != nil {
+		if parentPaths, err = c.generateReversePaths(parent); err != nil {
 			err = fmt.Errorf("failed to lookup parent path for folderID '%s': %w", parent, err)
 			return
 		}

@@ -40,18 +40,17 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 	c.logger.Debugf("[DriveWatcher] %d raw change(s) recovered in %v", len(changes), time.Since(start))
 	// Build the index with parents for further path computation
 	indexStart := time.Now()
-	index, err := c.buildIndex(changes)
-	if err != nil {
+	if err = c.updateIndex(changes); err != nil {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	c.logger.Debugf("[DriveWatcher] index builded in %v, containing %d nodes", time.Since(indexStart), len(index))
+	c.logger.Debugf("[DriveWatcher] index updating in %v, actually containing %d nodes", time.Since(indexStart), len(c.index))
 	// Process each event
 	changedFiles = make([]fileChange, 0, len(changes))
 	var fc *fileChange
 	for _, change := range changes {
 		// Transforme change into a suitable file event
-		if fc, err = c.processChange(change, index); err != nil {
+		if fc, err = c.processChange(change); err != nil {
 			err = fmt.Errorf("failed to process the %d changes retreived: %w", len(changes), err)
 			return
 		}
@@ -128,19 +127,8 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	return
 }
 
-type filesIndex map[string]*filesIndexInfos
-
-type filesIndexInfos struct {
-	Name        string
-	MimeType    string
-	Parents     []string
-	Trashed     bool
-	CreatedTime string
-}
-
-func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err error) {
+func (c *Controller) updateIndex(changes []*drive.Change) (err error) {
 	c.logger.Debugf("[DriveWatcher] start building the index based on %d change(s)", len(changes))
-	index = make(filesIndex, len(changes))
 	// Build the file index starting by infos contained in the change list
 	for _, change := range changes {
 		// Skip is the change is drive metadata related
@@ -154,12 +142,12 @@ func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err 
 		}
 		// Sometimes the file field come back empty, no idea why
 		if change.File == nil {
-			c.logger.Warningf("[DriveWatcher] file change for fileID %s had its file metadata empty, adding it to the lookup list", change.FileId)
-			index[change.FileId] = nil
+			c.logger.Warningf("[DriveWatcher] file change for fileID %s had its file metadata empty, adding it to the lookup list", change.FileId) // TODO must be related to removal, reevalute with statefull index
+			c.index[change.FileId] = nil
 			continue
 		}
 		// Extract known info for this file
-		index[change.FileId] = &filesIndexInfos{
+		c.index[change.FileId] = &filesIndexInfos{
 			Name:        change.File.Name,
 			MimeType:    change.File.MimeType,
 			Parents:     change.File.Parents,
@@ -168,42 +156,37 @@ func (c *Controller) buildIndex(changes []*drive.Change) (index filesIndex, err 
 		}
 		// Add its parents for search
 		for _, parent := range change.File.Parents {
-			index[parent] = nil
+			c.index[parent] = nil
 		}
 	}
 	// Found out all missing parents infos
-	if err = c.getFilesParentsInfo(index); err != nil {
+	if err = c.getFilesParentsInfo(); err != nil {
 		err = fmt.Errorf("failed to recover all parents files infos: %w", err)
 		return
 	}
 	// Done
-	if c.logger.IsDebugShown() {
-		for fileID, filesIndexInfos := range index {
-			c.logger.Debugf("[DriveWatcher] index fileID %s: %+v", fileID, *filesIndexInfos)
-		}
-	}
 	return
 }
 
-func (c *Controller) getFilesParentsInfo(files filesIndex) (err error) {
+func (c *Controller) getFilesParentsInfo() (err error) {
 	var runWithSearch, found bool
 	// Check all fileIDs
-	for fileID, fii := range files {
+	for fileID, fileInfo := range c.index {
 		// Is this fileIDs already searched ?
-		if fii != nil {
+		if fileInfo != nil {
 			continue
 		}
 		// Get file infos
-		if fii, err = c.getfilesIndexInfos(fileID); err != nil {
+		if fileInfo, err = c.getfilesIndexInfos(fileID); err != nil {
 			err = fmt.Errorf("failed to get file info for fileID %s: %w", fileID, err)
 			return
 		}
 		// Save them
-		files[fileID] = fii
+		c.index[fileID] = fileInfo
 		// Prepare its parents for search if unknown
-		for _, parent := range fii.Parents {
-			if _, found = files[parent]; !found {
-				files[parent] = nil
+		for _, parent := range fileInfo.Parents {
+			if _, found = c.index[parent]; !found {
+				c.index[parent] = nil
 			}
 		}
 		// Mark this run as non empty
@@ -211,7 +194,7 @@ func (c *Controller) getFilesParentsInfo(files filesIndex) (err error) {
 	}
 	if runWithSearch {
 		// new files infos discovered, let's find their parents too
-		return c.getFilesParentsInfo(files)
+		return c.getFilesParentsInfo()
 	}
 	// Every files has been searched and have their info now, time to return for real
 	return
@@ -244,7 +227,7 @@ func (c *Controller) getfilesIndexInfos(fileID string) (infos *filesIndexInfos, 
 	return
 }
 
-func (c *Controller) processChange(change *drive.Change, index filesIndex) (fc *fileChange, err error) {
+func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err error) {
 	// Skip if the change is drive metadata related
 	if change.ChangeType != "file" {
 		return
@@ -266,7 +249,7 @@ func (c *Controller) processChange(change *drive.Change, index filesIndex) (fc *
 			fi    *filesIndexInfos
 			found bool
 		)
-		if fi, found = index[change.FileId]; !found {
+		if fi, found = c.index[change.FileId]; !found {
 			if change.Removed {
 				c.logger.Warningf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor will be skipped",
 					change.FileId)
@@ -281,7 +264,7 @@ func (c *Controller) processChange(change *drive.Change, index filesIndex) (fc *
 		fileCreated = fi.CreatedTime
 	}
 	// Compute possible paths (bottom up)
-	reversedPaths, err := generateReversePaths(change.FileId, index)
+	reversedPaths, err := c.generateReversePaths(change.FileId)
 	if err != nil {
 		err = fmt.Errorf("failed to generate path for fileID %s, name '%s': %w", change.FileId, fileName, err)
 		return
