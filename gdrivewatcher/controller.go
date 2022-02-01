@@ -2,9 +2,8 @@ package gdrivewatcher
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
+	"sync"
 	"time"
 
 	"github.com/hekmon/rcgdip/gdrivewatcher/rcsnooper"
@@ -38,7 +37,8 @@ type Controller struct {
 	startPageToken string
 	limiter        *rate.Limiter
 	// Index related
-	index filesIndex
+	index       filesIndex
+	indexAccess sync.RWMutex
 }
 
 func New(ctx context.Context, conf Config) (c *Controller, err error) {
@@ -67,6 +67,11 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 	// Init Drive client
 	if c.driveClient, err = drive.NewService(ctx, option.WithHTTPClient(client)); err != nil {
 		err = fmt.Errorf("unable to initialize Drive API client: %w", err)
+		return
+	}
+	// Load state
+	if err = c.restoreState(); err != nil {
+		err = fmt.Errorf("failed to restore state: %w", err)
 		return
 	}
 	// Done
@@ -119,17 +124,8 @@ func (c *Controller) FakeRun() (err error) {
 	c.logger.Debugf("[DriveWatcher] index rootfolderid: %s", c.getRootFolder())
 
 	// Dump index
-	fd, err := os.OpenFile("watcher_index.json", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640)
-	if err != nil {
-		return fmt.Errorf("failed to save index: %w", err)
-	}
-	defer fd.Close()
-	encoder := json.NewEncoder(fd)
-	if c.logger.IsDebugShown() {
-		encoder.SetIndent("", "    ")
-	}
-	if err = encoder.Encode(c.index); err != nil {
-		return fmt.Errorf("failed to encode the index as JSON: %w", err)
+	if err = c.SaveState(); err != nil {
+		return fmt.Errorf("failed save the index to disk: %w", err)
 	}
 	return
 }
