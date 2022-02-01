@@ -1,8 +1,9 @@
 package gdrivewatcher
 
 import (
+	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 
 	"github.com/hekmon/rcgdip/diskstate"
 )
@@ -12,7 +13,8 @@ const (
 )
 
 type stateFile struct {
-	Index filesIndex `json:"remote_files_index"`
+	StartPage string     `json:"changes_start_page"`
+	Index     filesIndex `json:"remote_files_index"`
 }
 
 func (c *Controller) restoreState() (err error) {
@@ -20,20 +22,21 @@ func (c *Controller) restoreState() (err error) {
 	var recoveredState stateFile
 	// Load from file
 	if err = diskstate.LoadJSON(stateFileName, &recoveredState); err != nil {
-		if !os.IsNotExist(err) {
+		if !errors.Is(err, fs.ErrNotExist) {
 			err = fmt.Errorf("failed to load state from disk: %w", err)
 			return
 		}
 		// First run
 		err = nil
-		c.index = make(filesIndex)
-		c.logger.Debug("[DriveWatcher] starting from an empty state")
+		c.index = nil
+		c.logger.Info("[DriveWatcher] starting from an empty state")
 		return
 	}
 	// Extract and inject
 	c.indexAccess.Lock()
 	c.index = recoveredState.Index
 	c.indexAccess.Unlock()
+	c.startPageToken = recoveredState.StartPage
 	// Done
 	c.logger.Debugf("[DriveWatcher] index lodaded from disk containing %d nodes", len(c.index))
 	return
@@ -45,7 +48,8 @@ func (c *Controller) SaveState() (err error) {
 	c.indexAccess.RLock()
 	defer c.indexAccess.RUnlock()
 	state := stateFile{
-		Index: c.index,
+		StartPage: c.startPageToken,
+		Index:     c.index,
 	}
 	// Dump it to disk
 	if err = diskstate.SaveJSON(stateFileName, state, c.logger.IsDebugShown()); err != nil {

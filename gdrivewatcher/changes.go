@@ -14,6 +14,19 @@ const (
 	folderMimeType    = "application/vnd.google-apps.folder"
 )
 
+func (c *Controller) getChangesStartPage() (err error) {
+	changesReq := c.driveClient.Changes.GetStartPageToken().Context(c.ctx)
+	if c.rc.Drive.TeamDrive != "" {
+		changesReq.SupportsAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
+	}
+	changesStart, err := changesReq.Do()
+	if err != nil {
+		return
+	}
+	c.startPageToken = changesStart.StartPageToken
+	return
+}
+
 type fileChange struct {
 	Event   time.Time
 	Folder  bool
@@ -22,7 +35,7 @@ type fileChange struct {
 	Created time.Time
 }
 
-func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
+func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 	// Save the start token in case something goes wrong for future retry
 	backupStartToken := c.startPageToken
 	defer func() {
@@ -40,7 +53,7 @@ func (c *Controller) GetFilesChanges() (changedFiles []fileChange, err error) {
 	c.logger.Debugf("[DriveWatcher] %d raw change(s) recovered in %v", len(changes), time.Since(start))
 	// Build the index with parents for further path computation
 	indexStart := time.Now()
-	if err = c.incorporateChanges(changes); err != nil {
+	if err = c.incorporateChangesToIndex(changes); err != nil {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
@@ -131,7 +144,7 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	return
 }
 
-func (c *Controller) incorporateChanges(changes []*drive.Change) (err error) {
+func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err error) {
 	c.logger.Debugf("[DriveWatcher] start building the index based on %d change(s)", len(changes))
 	// Build the file index starting by infos contained in the change list
 	for _, change := range changes {

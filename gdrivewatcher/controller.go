@@ -22,8 +22,9 @@ const (
 )
 
 type Config struct {
-	RClone rcsnooper.Config
-	Logger *hllogger.HlLogger
+	RClone       rcsnooper.Config
+	PollInterval time.Duration
+	Logger       *hllogger.HlLogger
 }
 
 type Controller struct {
@@ -33,12 +34,15 @@ type Controller struct {
 	// RClone Snooper
 	rc *rcsnooper.Controller
 	// Google Drive API client
-	driveClient    *drive.Service
+	driveClient *drive.Service
+	limiter     *rate.Limiter
+	// State related
+	index          filesIndex
+	indexAccess    sync.RWMutex
 	startPageToken string
-	limiter        *rate.Limiter
-	// Index related
-	index       filesIndex
-	indexAccess sync.RWMutex
+	// Workers control plane
+	workers  sync.WaitGroup
+	fullStop chan struct{}
 }
 
 func New(ctx context.Context, conf Config) (c *Controller, err error) {
@@ -48,6 +52,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		err = fmt.Errorf("failed to initialize the RClone controller: %w", err)
 		return
 	}
+	conf.Logger.Infof("[DriveWatcher] %s", rc.Summary())
 	// Then we initialize ourself
 	c = &Controller{
 		ctx:     ctx,
@@ -55,17 +60,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		rc:      rc,
 		limiter: rate.NewLimiter(rate.Every(time.Minute/requestPerMin), requestPerMin/3),
 	}
-	// Prepare the OAuth2 configuration
-	oauthConf := &oauth2.Config{
-		Scopes:       []string{scopePrefix + rc.Drive.Scope},
-		Endpoint:     google.Endpoint,
-		ClientID:     rc.Drive.ClientID,
-		ClientSecret: rc.Drive.ClientSecret,
-		// RedirectURL:  oauthutil.TitleBarRedirectURL,
-	}
-	client := oauthConf.Client(ctx, rc.Drive.Token)
-	// Init Drive client
-	if c.driveClient, err = drive.NewService(ctx, option.WithHTTPClient(client)); err != nil {
+	if err = c.initDriveClient(); err != nil {
 		err = fmt.Errorf("unable to initialize Drive API client: %w", err)
 		return
 	}
@@ -74,58 +69,67 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		err = fmt.Errorf("failed to restore state: %w", err)
 		return
 	}
-	// Done
-	conf.Logger.Infof("[DriveWatcher] %s", rc.Summary())
-	return
-}
-
-func (c *Controller) FakeRun() (err error) {
-	// Dev: fake init
-	changesReq := c.driveClient.Changes.GetStartPageToken().Context(c.ctx)
-	if c.rc.Drive.TeamDrive != "" {
-		changesReq.SupportsAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
-	}
-	changesStart, err := changesReq.Do()
-	if err != nil {
-		return
-	}
-	c.startPageToken = changesStart.StartPageToken
-
-	// Build the index
-	if err = c.buildIndex(); err != nil {
-		err = fmt.Errorf("failed to build the initial index: %w", err)
-		return
-	}
-
-	// Do stuff
-	fmt.Println("Waiting", 30*time.Second)
-	time.Sleep(30 * time.Second)
-
-	// Compute the paths containing changes
-	changesFiles, err := c.GetFilesChanges()
-	if err != nil {
-		err = fmt.Errorf("failed to retreived changed files: %w", err)
-		return
-	}
-	fmt.Println("---- CHANGED FILES ----")
-	for _, change := range changesFiles {
-		fmt.Printf("%v %v %v", change.Event, change.Deleted, change.Created)
-		for _, path := range change.Paths {
-			fmt.Printf("\t%s -> ", path)
-			decryptedPath, err := c.rc.CryptCipher.DecryptFileName(path)
-			if err != nil {
-				panic(err)
-			}
-			fmt.Print(decryptedPath)
+	// Has the rclone backend changed ?
+	// TODO reset
+	// Fresh start ?
+	if c.startPageToken == "" {
+		if err = c.getChangesStartPage(); err != nil {
+			err = fmt.Errorf("failed to get the start page token from Drive API: %w", err)
+			return
 		}
-		fmt.Println()
 	}
-	fmt.Println("--------")
-	c.logger.Debugf("[DriveWatcher] index rootfolderid: %s", c.getRootFolder())
-
-	// Dump index
-	if err = c.SaveState(); err != nil {
-		return fmt.Errorf("failed save the index to disk: %w", err)
+	if c.index == nil {
+		if err = c.buildIndex(); err != nil {
+			err = fmt.Errorf("failed to index the drive: %w", err)
+			return
+		}
 	}
+	// Workers
+	c.fullStop = make(chan struct{})
+	go c.stopper()
+	c.workers.Add(1)
+	go c.watcher(conf.PollInterval)
+	// Done
 	return
 }
+
+func (c *Controller) initDriveClient() (err error) {
+	// Prepare the OAuth2 configuration
+	oauthConf := &oauth2.Config{
+		Scopes:       []string{scopePrefix + c.rc.Drive.Scope},
+		Endpoint:     google.Endpoint,
+		ClientID:     c.rc.Drive.ClientID,
+		ClientSecret: c.rc.Drive.ClientSecret,
+		// RedirectURL:  oauthutil.TitleBarRedirectURL,
+	}
+	// Init the HTTP OAuth2 enabled client
+	client := oauthConf.Client(c.ctx, c.rc.Drive.Token)
+	// Init Drive API client on top of that
+	c.driveClient, err = drive.NewService(c.ctx, option.WithHTTPClient(client))
+	return
+}
+
+func (c *Controller) stopper() {
+	var err error
+	// Waiting for stop signal
+	<-c.ctx.Done()
+	// Wait for workers to correctly stop
+	c.logger.Debug("[DriveWatcher] waiting for all workers to stop...")
+	c.workers.Wait()
+	// Save the stop
+	c.logger.Debug("[DriveWatcher] all workers stopped")
+	if err = c.SaveState(); err != nil {
+		c.logger.Errorf("[DriveWatcher] failed to save the state: %s", err.Error())
+	} else {
+		c.logger.Infof("[DriveWatcher] state successfully saved into %s", stateFileName)
+	}
+	// Mark full stop
+	close(c.fullStop)
+}
+
+func (c *Controller) WaitUntilFullStop() {
+	<-c.fullStop
+}
+
+// TODO index mutex
+// TODO nextpage mutex

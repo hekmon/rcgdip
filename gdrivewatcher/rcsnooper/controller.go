@@ -68,7 +68,7 @@ func (c *Controller) loadRCloneConfig(configPath string) (err error) {
 }
 
 func (c *Controller) Summary() string {
-	b := make([]string, 0, 4)
+	b := make([]string, 0, 5)
 
 	b = append(b, fmt.Sprintf("config path: %s", c.conf.RCloneConfigPath))
 	b = append(b, fmt.Sprintf("drive backend: %s", c.conf.DriveBackendName))
@@ -81,6 +81,9 @@ func (c *Controller) Summary() string {
 		b = append(b, fmt.Sprintf("team drive: %s", c.Drive.TeamDrive))
 	} else {
 		b = append(b, "no team drive")
+	}
+	if c.conf.CryptBackendName != "" {
+		b = append(b, fmt.Sprintf("crypt drive backend: %s", c.conf.CryptBackendName))
 	}
 
 	return strings.Join(b, ", ")
