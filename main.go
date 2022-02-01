@@ -19,7 +19,7 @@ var (
 	// Controllers
 	logger       *hllogger.HlLogger
 	driveWatcher *gdrivewatcher.Controller
-	// Proper stopping
+	// Clean stop
 	mainCtxCancel func()
 	mainStop      chan struct{}
 )
@@ -65,7 +65,7 @@ func main() {
 
 	// We are ready
 	if err := sysdnotify.Ready(); err != nil {
-		logger.Errorf("[Main] can't send systemd stopping notification: %v", err)
+		logger.Errorf("[Main] can't send systemd ready notification: %v", err)
 	}
 	<-mainStop
 	logger.Debugf("[Main] clean stop ok, exiting")
@@ -76,16 +76,28 @@ func handleSignals() {
 	defer close(mainStop)
 	// Register signals
 	var sig os.Signal
-	signalChannel := make(chan os.Signal, 2)
-	signal.Notify(signalChannel, syscall.SIGTERM, syscall.SIGINT)
+	signalChannel := make(chan os.Signal, 3)
+	signal.Notify(signalChannel, syscall.SIGTERM, syscall.SIGINT, syscall.SIGUSR1)
 	// Waiting for signals to catch
+	var err error
 	for sig = range signalChannel {
 		switch sig {
+		case syscall.SIGUSR1:
+			if err = sysdnotify.Reloading(); err != nil {
+				logger.Errorf("[Main] can't send systemd reloading notification: %v", err)
+			}
+			logger.Infof("[Main] signal '%v' caught: saving state to disk now")
+			if err = driveWatcher.SaveState(); err != nil {
+				logger.Infof("[DriveWatcher] failed to save state to disk: %s", err.Error())
+			}
+			if err = sysdnotify.Ready(); err != nil {
+				logger.Errorf("[Main] can't send systemd ready notification: %v", err)
+			}
 		case syscall.SIGTERM:
 			fallthrough
 		case syscall.SIGINT:
-			logger.Infof("[Main] Signal '%v' caught: cleaning up before exiting", sig)
-			if err := sysdnotify.Stopping(); err != nil {
+			logger.Infof("[Main] signal '%v' caught: cleaning up before exiting", sig)
+			if err = sysdnotify.Stopping(); err != nil {
 				logger.Errorf("[Main] can't send systemd stopping notification: %v", err)
 			} else {
 				logger.Debug("[Main] systemd stopping notification sent")
@@ -98,7 +110,7 @@ func handleSignals() {
 				driveWatcher.WaitUntilFullStop()
 				wg.Done()
 			}()
-			// Cancel main ctx & wait for all
+			// Cancel main ctx to send stop signal & wait for all
 			mainCtxCancel()
 			wg.Wait()
 			return
