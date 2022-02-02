@@ -40,7 +40,7 @@ type driveFilePathElem struct {
 
 func (c *Controller) generateReversePaths(fileID string) (buildedPaths []driveFilePath, err error) {
 	// Obtain infos for current fileID
-	fileInfos, found := c.index[fileID]
+	fileInfos, found := c.state.Index[fileID]
 	if !found {
 		err = fmt.Errorf("fileID '%s' not found", fileID)
 		return

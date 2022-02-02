@@ -28,22 +28,21 @@ func (c *Controller) initDriveClient() (err error) {
 }
 
 func (c *Controller) validateRemoteDrive() (valid bool) {
+	// we won't use mutex here as this fx is only called during init
 	c.logger.Info("[DriveWatcher] validating state...")
 	// If the remote drive does not validate, invalid our local state
 	defer func() {
 		if !valid {
-			c.rootID = ""
-			c.startPageToken = ""
-			c.index = nil
+			c.state = stateData{}
 		}
 	}()
 	// First do we have one ?
-	if c.rootID == "" {
+	if c.state.RootID == "" {
 		c.logger.Info("[DriveWatcher] no root folderID found, starting a new state")
 		return
 	}
 	// Get the stored rootID to see if we are still accessing the same drive
-	fileInfos, err := c.getFileInfo(c.rootID)
+	fileInfos, err := c.getFileInfo(c.state.RootID)
 	if err != nil {
 		c.logger.Warningf("[DriveWatcher] can not get our cached root fileID infos from remote, invalidating state: %w", err)
 		return
@@ -54,7 +53,7 @@ func (c *Controller) validateRemoteDrive() (valid bool) {
 		return
 	}
 	// All good
-	c.logger.Debugf("[DriveWatcher] the root folderID '%s' in our local state seems valid", c.rootID)
+	c.logger.Debugf("[DriveWatcher] the root folderID '%s' in our local state seems valid", c.state.RootID)
 	return true
 }
 

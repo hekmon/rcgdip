@@ -25,10 +25,10 @@ func (c *Controller) buildIndex() (err error) {
 		return
 	}
 	// Build the index with the infos
-	c.index = make(filesIndex, len(files))
+	c.state.Index = make(filesIndex, len(files))
 	for _, file := range files {
 		// Add file info to the index
-		c.index[file.Id] = &driveFileBasicInfo{
+		c.state.Index[file.Id] = &driveFileBasicInfo{
 			Name:        file.Name,
 			MimeType:    file.MimeType,
 			Parents:     file.Parents,
@@ -36,8 +36,8 @@ func (c *Controller) buildIndex() (err error) {
 		}
 		// Mark its parents for search during consolidate (actually all parents are within the listing except... the root folder)
 		for _, parent := range file.Parents {
-			if _, found := c.index[parent]; !found {
-				c.index[parent] = nil
+			if _, found := c.state.Index[parent]; !found {
+				c.state.Index[parent] = nil
 			}
 		}
 	}
@@ -47,13 +47,13 @@ func (c *Controller) buildIndex() (err error) {
 		return
 	}
 	// Check we have a root folder ID
-	c.rootID = c.getIndexRootFolder()
-	if c.rootID == "" {
+	c.state.RootID = c.getIndexRootFolder()
+	if c.state.RootID == "" {
 		err = errors.New("something must have gone wrong during the index building: can not find the root folder fileID")
 		return
 	}
 	// Done
-	c.logger.Infof("[DriveWatcher] index builded with %d nodes in %v", len(c.index), time.Since(start))
+	c.logger.Infof("[DriveWatcher] index builded with %d nodes in %v", len(c.state.Index), time.Since(start))
 	return
 }
 
@@ -113,7 +113,7 @@ func (c *Controller) getListPage(pageToken string) (files []*drive.File, err err
 func (c *Controller) consolidateIndex() (err error) {
 	var runWithSearch, found bool
 	// Check all fileIDs
-	for fileID, fileInfo := range c.index {
+	for fileID, fileInfo := range c.state.Index {
 		// Is this fileIDs already searched ?
 		if fileInfo != nil {
 			continue
@@ -124,11 +124,11 @@ func (c *Controller) consolidateIndex() (err error) {
 			return
 		}
 		// Save them
-		c.index[fileID] = fileInfo
+		c.state.Index[fileID] = fileInfo
 		// Prepare its parents for search if unknown
 		for _, parent := range fileInfo.Parents {
-			if _, found = c.index[parent]; !found {
-				c.index[parent] = nil
+			if _, found = c.state.Index[parent]; !found {
+				c.state.Index[parent] = nil
 			}
 		}
 		// Mark this run as non empty
@@ -143,7 +143,7 @@ func (c *Controller) consolidateIndex() (err error) {
 }
 
 func (c *Controller) getIndexRootFolder() string {
-	for id, infos := range c.index {
+	for id, infos := range c.state.Index {
 		if len(infos.Parents) == 0 {
 			return id
 		}

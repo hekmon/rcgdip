@@ -34,10 +34,8 @@ type Controller struct {
 	driveClient *drive.Service
 	limiter     *rate.Limiter
 	// State related
-	rootID         string
-	startPageToken string
-	index          filesIndex
-	indexAccess    sync.RWMutex
+	state       stateData
+	stateAccess sync.Mutex
 	// Workers control plane
 	workers  sync.WaitGroup
 	fullStop chan struct{}
@@ -70,13 +68,13 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 	// Has the rclone backend changed ?
 	c.validateRemoteDrive()
 	// Fresh start ?
-	if c.startPageToken == "" {
+	if c.state.StartPageToken == "" {
 		if err = c.getChangesStartPage(); err != nil {
 			err = fmt.Errorf("failed to get the start page token from Drive API: %w", err)
 			return
 		}
 	}
-	if c.index == nil {
+	if c.state.Index == nil {
 		// build Index will extract the root folderID
 		if err = c.buildIndex(); err != nil {
 			err = fmt.Errorf("failed to index the drive: %w", err)
@@ -114,5 +112,4 @@ func (c *Controller) WaitUntilFullStop() {
 	<-c.fullStop
 }
 
-// TODO index mutex
 // TODO nextpage mutex
