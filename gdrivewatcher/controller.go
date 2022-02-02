@@ -67,7 +67,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 	}
 	// Has the rclone backend changed ?
 	c.validateRemoteDrive()
-	// Fresh start ?
+	// Fresh start ? (or reset)
 	if c.state.StartPageToken == "" {
 		if err = c.getChangesStartPage(); err != nil {
 			err = fmt.Errorf("failed to get the start page token from Drive API: %w", err)
