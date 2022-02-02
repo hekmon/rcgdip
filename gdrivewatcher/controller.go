@@ -76,7 +76,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 	}
 	if c.state.Index == nil {
 		// build Index will extract the root folderID
-		if err = c.buildIndex(); err != nil {
+		if err = c.initialIndexBuild(); err != nil {
 			err = fmt.Errorf("failed to index the drive: %w", err)
 			return
 		}
@@ -111,5 +111,3 @@ func (c *Controller) stopper() {
 func (c *Controller) WaitUntilFullStop() {
 	<-c.fullStop
 }
-
-// TODO nextpage mutex

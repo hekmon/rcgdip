@@ -11,7 +11,6 @@ import (
 
 const (
 	maxChangesPerPage = 1000
-	folderMimeType    = "application/vnd.google-apps.folder"
 )
 
 func (c *Controller) getChangesStartPage() (err error) {
@@ -33,7 +32,6 @@ type fileChange struct {
 	Folder  bool
 	Deleted bool
 	Paths   []string
-	Created time.Time
 }
 
 func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
@@ -169,11 +167,9 @@ func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err err
 		}
 		// Extract known info for this file
 		c.state.Index[change.FileId] = &driveFileBasicInfo{
-			Name:        change.File.Name,
-			MimeType:    change.File.MimeType,
-			Parents:     change.File.Parents,
-			Trashed:     change.File.Trashed,
-			CreatedTime: change.File.CreatedTime,
+			Name:    change.File.Name,
+			Folder:  change.File.MimeType == folderMimeType,
+			Parents: change.File.Parents,
 		}
 		// Add its parents for search
 		for _, parent := range change.File.Parents {
@@ -197,15 +193,13 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 	// In case the file metadata was not provided within the change, extract info from our index (main case: removal)
 	var (
 		fileName     string
-		fileMimeType string
+		fileIsFolder bool
 		fileTrashed  bool
-		fileCreated  string
 	)
 	if change.File != nil {
 		fileName = change.File.Name
-		fileMimeType = change.File.MimeType
+		fileIsFolder = change.File.MimeType == folderMimeType
 		fileTrashed = change.File.Trashed
-		fileCreated = change.File.CreatedTime
 	} else {
 		var (
 			fi    *driveFileBasicInfo
@@ -221,9 +215,7 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 			return
 		}
 		fileName = fi.Name
-		fileMimeType = fi.MimeType
-		fileTrashed = fi.Trashed
-		fileCreated = fi.CreatedTime
+		fileIsFolder = fi.Folder
 	}
 	// Compute possible paths (bottom up)
 	reversedPaths, err := c.generateReversePaths(change.FileId)
@@ -255,17 +247,11 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 		err = fmt.Errorf("failed to convert change time for fileID %s, name '%s': %w", change.FileId, fileName, err)
 		return
 	}
-	createdTime, err := time.Parse(time.RFC3339, fileCreated)
-	if err != nil {
-		err = fmt.Errorf("failed to convert create time for fileID %s, name '%s': %w", change.FileId, fileName, err)
-		return
-	}
 	// Save up the consolidated info for return collection
 	fc = &fileChange{
 		Event:   changeTime,
-		Folder:  fileMimeType == folderMimeType,
+		Folder:  fileIsFolder,
 		Deleted: change.Removed || fileTrashed,
-		Created: createdTime,
 		Paths:   validPaths,
 	}
 	return

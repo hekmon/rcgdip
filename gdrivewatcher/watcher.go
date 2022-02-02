@@ -32,7 +32,7 @@ func (c *Controller) workerPass() {
 	}
 	fmt.Println("---- CHANGED FILES ----")
 	for _, change := range changesFiles {
-		fmt.Printf("%v %v %v", change.Event, change.Deleted, change.Created)
+		fmt.Printf("%v %v", change.Event, change.Deleted)
 		for _, path := range change.Paths {
 			fmt.Printf("\t%s -> ", path)
 			decryptedPath, err := c.rc.CryptCipher.DecryptFileName(path)

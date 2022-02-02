@@ -4,18 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/googleapi"
-)
-
-const (
-	maxFilesPerPage = 1000
 )
 
 type filesIndex map[string]*driveFileBasicInfo
 
-func (c *Controller) buildIndex() (err error) {
+func (c *Controller) initialIndexBuild() (err error) {
 	c.logger.Infof("[DriveWatcher] building the initial index...")
 	// Get all the things, ahem files
 	start := time.Now()
@@ -29,10 +22,9 @@ func (c *Controller) buildIndex() (err error) {
 	for _, file := range files {
 		// Add file info to the index
 		c.state.Index[file.Id] = &driveFileBasicInfo{
-			Name:        file.Name,
-			MimeType:    file.MimeType,
-			Parents:     file.Parents,
-			CreatedTime: file.CreatedTime,
+			Name:    file.Name,
+			Folder:  file.MimeType == folderMimeType,
+			Parents: file.Parents,
 		}
 		// Mark its parents for search during consolidate (actually all parents are within the listing except... the root folder)
 		for _, parent := range file.Parents {
@@ -54,59 +46,6 @@ func (c *Controller) buildIndex() (err error) {
 	}
 	// Done
 	c.logger.Infof("[DriveWatcher] index builded with %d nodes in %v", len(c.state.Index), time.Since(start))
-	return
-}
-
-func (c *Controller) getListPage(pageToken string) (files []*drive.File, err error) {
-	c.logger.Debug("[DriveWatcher] getting a new page of files...")
-	// Build Request
-	listReq := c.driveClient.Files.List()
-	listReq.Corpora("user").Spaces("drive")
-	if c.rc.Drive.TeamDrive != "" {
-		listReq.Corpora("drive").SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
-	} else {
-		listReq.Corpora("user")
-	}
-	if pageToken != "" {
-		listReq.PageToken(pageToken)
-	}
-	{
-		// // Dev
-		// listReq.PageSize(1)
-		// listReq.Fields(googleapi.Field("*"))
-	}
-	{
-		// Prod
-		listReq.PageSize(maxFilesPerPage)
-		listReq.Fields(googleapi.Field("nextPageToken"), googleapi.Field("files/id"), googleapi.Field("files/name"),
-			googleapi.Field("files/mimeType"), googleapi.Field("files/parents"), googleapi.Field("files/createdTime"))
-	}
-	// Execute Request
-	if err = c.limiter.Wait(c.ctx); err != nil {
-		err = fmt.Errorf("can not execute API request, waiting for the limiter failed: %w", err)
-		return
-	}
-	start := time.Now()
-	filesList, err := listReq.Do()
-	if err != nil {
-		err = fmt.Errorf("failed to execute the API query for files list: %w", err)
-		return
-	}
-	c.logger.Debugf("[DriveWatcher] %d file(s) obtained in this page in %v", len(filesList.Files), time.Since(start))
-	// Extract files from answer
-	files = filesList.Files
-	// Is there any pages left ?
-	if filesList.NextPageToken != "" {
-		c.logger.Debug("[DriveWatcher] another page of files is available")
-		var nextPagesfiles []*drive.File
-		if nextPagesfiles, err = c.getListPage(filesList.NextPageToken); err != nil {
-			err = fmt.Errorf("failed to get change list next page: %w", err)
-			return
-		}
-		files = append(files, nextPagesfiles...)
-		return
-	}
-	// Done
 	return
 }
 
