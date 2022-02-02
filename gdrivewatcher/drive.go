@@ -2,6 +2,7 @@ package gdrivewatcher
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -46,16 +47,22 @@ func (c *Controller) validateRemoteDrive() (valid bool) {
 		c.logger.Info("[DriveWatcher] no root folderID found, starting a new state")
 		return
 	}
-	// Get the stored rootID to see if we are still accessing the same drive
-	fileInfos, err := c.getFileInfo(c.state.RootID)
+	// Get the current rootID to see if we are still accessing the same drive
+	rootID, rootInfos, err := c.getRootInfo()
 	if err != nil {
-		c.logger.Warningf("[DriveWatcher] can not get our cached root fileID infos from remote, invalidating state: %w", err)
+		c.logger.Warningf("[DriveWatcher] can not get our cached root fileID infos from remote, invalidating state: %s", err)
 		return
 	}
 	// Check
-	if len(fileInfos.Parents) != 0 {
-		c.logger.Warningf("[DriveWatcher] our cached root fileID has parents, invalidating state: %w", err)
+	if c.state.RootID != rootID {
+		c.logger.Warningf("[DriveWatcher] rootID has changed (%s -> %s), invalidating state: %s", c.state.RootID, rootID, err)
 		return
+	}
+	if storedRootInfo, found := c.state.Index[rootID]; found {
+		if !reflect.DeepEqual(storedRootInfo, rootInfos) {
+			c.logger.Warningf("[DriveWatcher] our cached root property is not the same as remote, invalidating state: %s", err)
+			return
+		}
 	}
 	// All good
 	c.logger.Debugf("[DriveWatcher] the root folderID '%s' in our local state seems valid", c.state.RootID)
@@ -66,7 +73,7 @@ func (c *Controller) getListPage(pageToken string) (files []*drive.File, err err
 	c.logger.Debug("[DriveWatcher] getting a new page of files...")
 	// Build Request
 	listReq := c.driveClient.Files.List()
-	listReq.Corpora("user").Spaces("drive")
+	listReq.Spaces("drive").Q("trashed=false")
 	if c.rc.Drive.TeamDrive != "" {
 		listReq.Corpora("drive").SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
 	} else {
@@ -84,7 +91,7 @@ func (c *Controller) getListPage(pageToken string) (files []*drive.File, err err
 		// Prod
 		listReq.PageSize(maxFilesPerPage)
 		listReq.Fields(googleapi.Field("nextPageToken"), googleapi.Field("files/id"), googleapi.Field("files/name"),
-			googleapi.Field("files/mimeType"), googleapi.Field("files/parents"), googleapi.Field("files/createdTime"))
+			googleapi.Field("files/mimeType"), googleapi.Field("files/parents"))
 	}
 	// Execute Request
 	if err = c.limiter.Wait(c.ctx); err != nil {
@@ -102,7 +109,7 @@ func (c *Controller) getListPage(pageToken string) (files []*drive.File, err err
 	files = filesList.Files
 	// Is there any pages left ?
 	if filesList.NextPageToken != "" {
-		c.logger.Debug("[DriveWatcher] another page of files is available")
+		c.logger.Debugf("[DriveWatcher] another page of files is available at %s", filesList.NextPageToken)
 		var nextPagesfiles []*drive.File
 		if nextPagesfiles, err = c.getListPage(filesList.NextPageToken); err != nil {
 			err = fmt.Errorf("failed to get change list next page: %w", err)
@@ -121,11 +128,20 @@ type driveFileBasicInfo struct {
 	Parents []string
 }
 
+func (c *Controller) getRootInfo() (rootID string, infos *driveFileBasicInfo, err error) {
+	return c.getFileInfoComplete("root")
+}
+
 func (c *Controller) getFileInfo(fileID string) (infos *driveFileBasicInfo, err error) {
+	_, infos, err = c.getFileInfoComplete(fileID)
+	return
+}
+
+func (c *Controller) getFileInfoComplete(fileID string) (recoveredID string, infos *driveFileBasicInfo, err error) {
 	c.logger.Debugf("[DriveWatcher] requesting information about fileID %s...", fileID)
 	// Build request
 	fileRequest := c.driveClient.Files.Get(fileID).Context(c.ctx)
-	fileRequest.Fields(googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"), googleapi.Field("trashed"), googleapi.Field("createdTime"))
+	fileRequest.Fields(googleapi.Field("id"), googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"))
 	if c.rc.Drive.TeamDrive != "" {
 		fileRequest.SupportsAllDrives(true)
 	}
@@ -142,6 +158,7 @@ func (c *Controller) getFileInfo(fileID string) (infos *driveFileBasicInfo, err 
 	}
 	c.logger.Debugf("[DriveWatcher] information about fileID %s recovered in %v", fileID, time.Since(start))
 	// Extract data
+	recoveredID = fii.Id
 	infos = &driveFileBasicInfo{
 		Name:    fii.Name,
 		Folder:  fii.MimeType == folderMimeType,

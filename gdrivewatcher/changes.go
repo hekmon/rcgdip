@@ -100,9 +100,11 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	{
 		// Prod
 		changesReq.PageSize(maxChangesPerPage)
-		changesReq.Fields(googleapi.Field("nextPageToken"), googleapi.Field("newStartPageToken"), googleapi.Field("changes"),
-			googleapi.Field("changes/fileId"), googleapi.Field("changes/removed"), googleapi.Field("changes/time"), googleapi.Field("changes/changeType"), googleapi.Field("changes/file"),
-			googleapi.Field("changes/file/name"), googleapi.Field("changes/file/mimeType"), googleapi.Field("changes/file/trashed"), googleapi.Field("changes/file/parents"), googleapi.Field("changes/file/createdTime"))
+		changesReq.Fields(googleapi.Field("nextPageToken"), googleapi.Field("newStartPageToken"),
+			googleapi.Field("changes"), googleapi.Field("changes/fileId"), googleapi.Field("changes/removed"),
+			googleapi.Field("changes/time"), googleapi.Field("changes/changeType"), googleapi.Field("changes/file"),
+			googleapi.Field("changes/file/name"), googleapi.Field("changes/file/mimeType"), googleapi.Field("changes/file/trashed"),
+			googleapi.Field("changes/file/parents"), googleapi.Field("changes/file/createdTime"))
 	}
 	// Execute Request
 	if err = c.limiter.Wait(c.ctx); err != nil {
@@ -120,7 +122,7 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	changes = changeList.Changes
 	// Is there any pages left ?
 	if changeList.NextPageToken != "" {
-		c.logger.Debug("[DriveWatcher] another page of changes is available")
+		c.logger.Debugf("[DriveWatcher] another page of changes is available at %s", changeList.NextPageToken)
 		var nextPagesChanges []*drive.Change
 		if nextPagesChanges, err = c.fetchChanges(changeList.NextPageToken); err != nil {
 			err = fmt.Errorf("failed to get change list next page: %w", err)
