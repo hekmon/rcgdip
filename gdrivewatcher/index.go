@@ -13,15 +13,7 @@ const (
 	maxFilesPerPage = 1000
 )
 
-type filesIndex map[string]*filesIndexInfos
-
-type filesIndexInfos struct {
-	Name        string
-	MimeType    string
-	Parents     []string
-	Trashed     bool
-	CreatedTime string
-}
+type filesIndex map[string]*driveFileBasicInfo
 
 func (c *Controller) buildIndex() (err error) {
 	c.logger.Infof("[DriveWatcher] building the initial index...")
@@ -36,7 +28,7 @@ func (c *Controller) buildIndex() (err error) {
 	c.index = make(filesIndex, len(files))
 	for _, file := range files {
 		// Add file info to the index
-		c.index[file.Id] = &filesIndexInfos{
+		c.index[file.Id] = &driveFileBasicInfo{
 			Name:        file.Name,
 			MimeType:    file.MimeType,
 			Parents:     file.Parents,
@@ -54,7 +46,9 @@ func (c *Controller) buildIndex() (err error) {
 		err = fmt.Errorf("failed to consolidate index after initial build up: %w", err)
 		return
 	}
-	if c.getRootFolder() == "" {
+	// Check we have a root folder ID
+	c.rootID = c.getIndexRootFolder()
+	if c.rootID == "" {
 		err = errors.New("something must have gone wrong during the index building: can not find the root folder fileID")
 		return
 	}
@@ -148,38 +142,7 @@ func (c *Controller) consolidateIndex() (err error) {
 	return
 }
 
-func (c *Controller) getFileInfo(fileID string) (infos *filesIndexInfos, err error) {
-	c.logger.Debugf("[DriveWatcher] requesting information about fileID %s...", fileID)
-	// Build request
-	fileRequest := c.driveClient.Files.Get(fileID).Context(c.ctx)
-	fileRequest.Fields(googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"), googleapi.Field("trashed"), googleapi.Field("createdTime"))
-	if c.rc.Drive.TeamDrive != "" {
-		fileRequest.SupportsAllDrives(true)
-	}
-	// Execute request
-	if err = c.limiter.Wait(c.ctx); err != nil {
-		err = fmt.Errorf("can not execute API request, waiting for the limiter failed: %w", err)
-		return
-	}
-	start := time.Now()
-	fii, err := fileRequest.Do()
-	if err != nil {
-		err = fmt.Errorf("failed to execute file info get API query: %w", err)
-		return
-	}
-	c.logger.Debugf("[DriveWatcher] information about fileID %s recovered in %v", fileID, time.Since(start))
-	// Extract data
-	infos = &filesIndexInfos{
-		Name:        fii.Name,
-		MimeType:    fii.MimeType,
-		Parents:     fii.Parents,
-		Trashed:     fii.Trashed,
-		CreatedTime: fii.CreatedTime,
-	}
-	return
-}
-
-func (c *Controller) getRootFolder() string {
+func (c *Controller) getIndexRootFolder() string {
 	for id, infos := range c.index {
 		if len(infos.Parents) == 0 {
 			return id

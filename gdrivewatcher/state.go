@@ -13,6 +13,7 @@ const (
 )
 
 type stateFile struct {
+	RootID    string     `json:"root_check"`
 	StartPage string     `json:"changes_start_page"`
 	Index     filesIndex `json:"remote_files_index"`
 }
@@ -29,14 +30,14 @@ func (c *Controller) restoreState() (err error) {
 		// First run
 		err = nil
 		c.index = nil
-		c.logger.Info("[DriveWatcher] starting from an empty state")
 		return
 	}
 	// Extract and inject
+	c.rootID = recoveredState.RootID
+	c.startPageToken = recoveredState.StartPage
 	c.indexAccess.Lock()
 	c.index = recoveredState.Index
 	c.indexAccess.Unlock()
-	c.startPageToken = recoveredState.StartPage
 	// Done
 	c.logger.Debugf("[DriveWatcher] index lodaded from disk containing %d nodes", len(c.index))
 	return
@@ -48,6 +49,7 @@ func (c *Controller) SaveState() (err error) {
 	c.indexAccess.RLock()
 	defer c.indexAccess.RUnlock()
 	state := stateFile{
+		RootID:    c.rootID,
 		StartPage: c.startPageToken,
 		Index:     c.index,
 	}

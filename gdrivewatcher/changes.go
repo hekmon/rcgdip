@@ -164,7 +164,7 @@ func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err err
 			continue
 		}
 		// Extract known info for this file
-		c.index[change.FileId] = &filesIndexInfos{
+		c.index[change.FileId] = &driveFileBasicInfo{
 			Name:        change.File.Name,
 			MimeType:    change.File.MimeType,
 			Parents:     change.File.Parents,
@@ -204,7 +204,7 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 		fileCreated = change.File.CreatedTime
 	} else {
 		var (
-			fi    *filesIndexInfos
+			fi    *driveFileBasicInfo
 			found bool
 		)
 		if fi, found = c.index[change.FileId]; !found {

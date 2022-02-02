@@ -44,5 +44,4 @@ func (c *Controller) workerPass() {
 		fmt.Println()
 	}
 	fmt.Println("--------")
-	c.logger.Debugf("[DriveWatcher] index rootfolderid: %s", c.getRootFolder())
 }

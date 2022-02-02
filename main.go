@@ -96,6 +96,7 @@ func handleSignals() {
 		case syscall.SIGTERM:
 			fallthrough
 		case syscall.SIGINT:
+			logger.Output("\n")
 			logger.Infof("[Main] signal '%v' caught: cleaning up before exiting", sig)
 			if err = sysdnotify.Stopping(); err != nil {
 				logger.Errorf("[Main] can't send systemd stopping notification: %v", err)

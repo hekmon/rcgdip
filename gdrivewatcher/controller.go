@@ -9,11 +9,8 @@ import (
 	"github.com/hekmon/rcgdip/gdrivewatcher/rcsnooper"
 
 	"github.com/hekmon/hllogger"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	"golang.org/x/time/rate"
 	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/option"
 )
 
 const (
@@ -37,9 +34,10 @@ type Controller struct {
 	driveClient *drive.Service
 	limiter     *rate.Limiter
 	// State related
+	rootID         string
+	startPageToken string
 	index          filesIndex
 	indexAccess    sync.RWMutex
-	startPageToken string
 	// Workers control plane
 	workers  sync.WaitGroup
 	fullStop chan struct{}
@@ -70,7 +68,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		return
 	}
 	// Has the rclone backend changed ?
-	// TODO reset
+	c.validateRemoteDrive()
 	// Fresh start ?
 	if c.startPageToken == "" {
 		if err = c.getChangesStartPage(); err != nil {
@@ -79,6 +77,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		}
 	}
 	if c.index == nil {
+		// build Index will extract the root folderID
 		if err = c.buildIndex(); err != nil {
 			err = fmt.Errorf("failed to index the drive: %w", err)
 			return
@@ -90,22 +89,6 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 	c.workers.Add(1)
 	go c.watcher(conf.PollInterval)
 	// Done
-	return
-}
-
-func (c *Controller) initDriveClient() (err error) {
-	// Prepare the OAuth2 configuration
-	oauthConf := &oauth2.Config{
-		Scopes:       []string{scopePrefix + c.rc.Drive.Scope},
-		Endpoint:     google.Endpoint,
-		ClientID:     c.rc.Drive.ClientID,
-		ClientSecret: c.rc.Drive.ClientSecret,
-		// RedirectURL:  oauthutil.TitleBarRedirectURL,
-	}
-	// Init the HTTP OAuth2 enabled client
-	client := oauthConf.Client(c.ctx, c.rc.Drive.Token)
-	// Init Drive API client on top of that
-	c.driveClient, err = drive.NewService(c.ctx, option.WithHTTPClient(client))
 	return
 }
 
