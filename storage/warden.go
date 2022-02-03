@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	wardenFreq = 1 * time.Minute
+	wardenFreq   = 1 * time.Minute
+	minToReclain = 10 * cunits.MiB
 )
 
 func (c *Controller) warden() {
@@ -15,38 +16,38 @@ func (c *Controller) warden() {
 	// Start the watch
 	ticker := time.NewTicker(wardenFreq)
 	defer ticker.Stop()
-	c.logger.Infof("[Storage] warden: will check db every %v", wardenFreq)
+	c.logger.Debugf("[Storage] will check db every %v", wardenFreq)
 	for {
 		select {
 		case <-ticker.C:
 			c.wardenPass()
 		case <-c.ctx.Done():
-			c.logger.Debug("[Storage] warden: stopping as main context has been cancelled")
+			c.logger.Debug("[Storage] stopping warden worker as main context has been cancelled")
 			return
 		}
 	}
 }
 
 func (c *Controller) wardenPass() {
-	c.logger.Debug("[Storage] warden: starting pass")
+	c.logger.Debug("[Storage] checking db...")
 	// Compact db
-	if reclaimableSize := c.db.Reclaimable(); reclaimableSize > 0 {
-		size := cunits.ImportInByte(float64(reclaimableSize))
-		c.logger.Debugf("[Storage] warden: reclaiming %d disk space...", size)
+	reclaimableSize := cunits.ImportInByte(float64(c.db.Reclaimable()))
+	if reclaimableSize >= minToReclain {
+		c.logger.Infof("[Storage] reclaiming %s disk space...", reclaimableSize)
 		if err := c.db.Merge(); err != nil {
-			c.logger.Errorf("[Storaqe] warden: failed to reclaim %d of disk space: %s",
-				size, err.Error())
+			c.logger.Errorf("[Storaqe] failed to reclaim %s of disk space: %s",
+				reclaimableSize, err.Error())
 		} else {
-			c.logger.Infof("[Storaqe] warden: successfully reclaimed %d of disk space", size)
+			c.logger.Infof("[Storage] successfully reclaimed %s of disk space", reclaimableSize)
 		}
 	} else {
-		c.logger.Debug("[Storage] warden: no reclaimable space found")
+		c.logger.Debugf("[Storage] reclaimable space is too low to performe a merge: %s < %s", reclaimableSize, minToReclain)
 	}
 	// Show stats
 	if stats, err := c.db.Stats(); err != nil {
-		c.logger.Errorf("[Storaqe] warden: failed to get db stats: %s", err.Error())
+		c.logger.Errorf("[Storaqe] failed to get db stats: %s", err.Error())
 	} else {
-		c.logger.Infof("[Storaqe] warden: db has %d data files, %d keys and weight %s",
+		c.logger.Infof("[Storaqe] db stats: %d data files, %d keys for %s on disk",
 			stats.Datafiles, stats.Keys, cunits.ImportInByte(float64(stats.Size)))
 	}
 }
