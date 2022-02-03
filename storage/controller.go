@@ -21,6 +21,10 @@ type Controller struct {
 	backupDBPath string
 	// KV DB
 	db *bitcask.Bitcask
+	// Stats
+	statsAccess  sync.Mutex
+	maxSizeKey   int
+	maxSizeValue int
 	// Workers
 	ctx       context.Context
 	ctxCancel func()
@@ -63,6 +67,25 @@ func (c *Controller) Stop() {
 		c.logger.Errorf("[Storage] can not cleanly close the db, it might get corrupt, please consider using the backup db before restarting: %s",
 			err.Error())
 	} else {
+		c.statsAccess.Lock()
+		c.logger.Debugf("[Storage] stats: max size key encoutered is %d and max size value encoutered is %d", c.maxSizeKey, c.maxSizeValue)
+		c.statsAccess.Unlock()
 		c.logger.Info("[Storage] database closed")
 	}
+}
+
+func (c *Controller) updateKeysStat(keyLength int) {
+	c.statsAccess.Lock()
+	if keyLength > c.maxSizeKey {
+		c.maxSizeKey = keyLength
+	}
+	c.statsAccess.Unlock()
+}
+
+func (c *Controller) updateValuesStat(valueLength int) {
+	c.statsAccess.Lock()
+	if valueLength > c.maxSizeKey {
+		c.maxSizeValue = valueLength
+	}
+	c.statsAccess.Unlock()
 }

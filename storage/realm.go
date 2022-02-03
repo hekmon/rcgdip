@@ -11,13 +11,13 @@ import (
 
 type RealmController struct {
 	prefix []byte
-	db     *bitcask.Bitcask
+	main   *Controller
 }
 
 func (c *Controller) NewScoppedAccess(realm string) *RealmController {
 	return &RealmController{
 		prefix: []byte(realm + "_"),
-		db:     c.db,
+		main:   c,
 	}
 }
 
@@ -35,12 +35,12 @@ func (sb *RealmController) Clear() (err error) {
 }
 
 func (sb *RealmController) Delete(key string) (err error) {
-	return sb.db.Delete(sb.fqdnKey(key))
+	return sb.main.db.Delete(sb.fqdnKey(key))
 }
 
 func (sb *RealmController) Get(key string, unmarshallAsJSON interface{}) (found bool, err error) {
 	// Get raw value
-	rawValue, err := sb.db.Get(sb.fqdnKey(key))
+	rawValue, err := sb.main.db.Get(sb.fqdnKey(key))
 	if err != nil {
 		if errors.Is(err, bitcask.ErrKeyNotFound) {
 			err = nil
@@ -57,12 +57,12 @@ func (sb *RealmController) Get(key string, unmarshallAsJSON interface{}) (found 
 }
 
 func (sb *RealmController) Has(key string) (exists bool) {
-	return sb.db.Has(sb.fqdnKey(key))
+	return sb.main.db.Has(sb.fqdnKey(key))
 
 }
 
 func (sb *RealmController) Keys() (keys []string) {
-	for key := range sb.db.Keys() {
+	for key := range sb.main.db.Keys() {
 		if sb.hasKeyPrefix(key) {
 			keys = append(keys, string(key[len(sb.prefix):]))
 		}
@@ -71,7 +71,7 @@ func (sb *RealmController) Keys() (keys []string) {
 }
 
 func (sb *RealmController) NbKeys() (nbKeys int) {
-	for key := range sb.db.Keys() {
+	for key := range sb.main.db.Keys() {
 		if sb.hasKeyPrefix(key) {
 			nbKeys++
 		}
@@ -80,21 +80,25 @@ func (sb *RealmController) NbKeys() (nbKeys int) {
 }
 
 func (sb *RealmController) Set(key string, marshall2JSON interface{}) (err error) {
-	// Unmarshall raw value
+	// Marshall raw value
 	rawValue, err := json.Marshal(marshall2JSON)
 	if err != nil {
 		return
 	}
 	// Set raw value
-	if err = sb.db.Put(sb.fqdnKey(key), rawValue); err != nil {
+	absoluteKey := sb.fqdnKey(key)
+	if err = sb.main.db.Put(sb.fqdnKey(key), rawValue); err != nil {
 		return
 	}
 	// All good
+	sb.main.workers.Add(2)
+	go sb.main.updateKeysStat(len(absoluteKey))
+	go sb.main.updateValuesStat(len(rawValue))
 	return
 }
 
 func (sb *RealmController) Sync() (err error) {
-	return sb.db.Sync()
+	return sb.main.db.Sync()
 }
 
 /*
