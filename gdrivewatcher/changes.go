@@ -228,38 +228,26 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 		return
 	}
 	// In case the file metadata was not provided within the change, extract info from our index (main case: removal)
-	var (
-		fileName     string
-		fileIsFolder bool
-		fileTrashed  bool
-	)
-	if change.File != nil {
-		fileName = change.File.Name
-		fileIsFolder = change.File.MimeType == folderMimeType
-		fileTrashed = change.File.Trashed
-	} else {
-		var (
-			fi    driveFileBasicInfo
-			found bool
-		)
-		if found, err = c.index.Get(change.FileId, &fi); err != nil {
-			err = fmt.Errorf("failed to get fileID '%s' infos from local index: %w", change.FileId, err)
-			return
-		}
-		if !found {
-			if change.Removed {
-				c.logger.Warningf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor it will be skipped",
-					change.FileId)
-			} else {
-				err = fmt.Errorf("change does not contain file metadata and its fileID '%s' was not found within the index", change.FileId)
-			}
-			return
-		}
-		fileName = fi.Name
-		fileIsFolder = fi.Folder
+	fileName, fileIsFolder, fileTrashed, skip, err := c.compileFileInfosFor(change)
+	if err != nil {
+		err = fmt.Errorf("failed to compile file info: %w", err)
+		return
+	}
+	if skip {
+		return
 	}
 	// Purge file from index at the end if deletion
-	// TODO defer
+	if change.Removed {
+		defer func() {
+			if deleteErr := c.index.Delete(change.FileId); err != nil {
+				c.logger.Errorf("[DriveWatcher] failed to delete fileID '%s' from local index after processing its removed change event: %s",
+					change.FileId, deleteErr)
+			} else {
+				c.logger.Debugf("[DriveWatcher] deletes fileID '%s' from local index after processing its removed change event",
+					change.FileId)
+			}
+		}()
+	}
 	// Compute possible paths (bottom up)
 	reversedPaths, err := c.generateReversePaths(change.FileId)
 	if err != nil {
@@ -297,5 +285,37 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 		Deleted: change.Removed || fileTrashed,
 		Paths:   validPaths,
 	}
+	return
+}
+
+func (c *Controller) compileFileInfosFor(change *drive.Change) (fileName string, fileIsFolder bool, fileTrashed bool, skip bool, err error) {
+	// If file metadata is attached to change event, use them directly
+	if change.File != nil {
+		fileName = change.File.Name
+		fileIsFolder = change.File.MimeType == folderMimeType
+		fileTrashed = change.File.Trashed
+		return
+	}
+	// Else, search it within our local index
+	var (
+		fi    driveFileBasicInfo
+		found bool
+	)
+	if found, err = c.index.Get(change.FileId, &fi); err != nil {
+		err = fmt.Errorf("failed to get fileID '%s' infos from local index: %w", change.FileId, err)
+		return
+	}
+	if !found {
+		if change.Removed {
+			c.logger.Warningf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor it will be skipped",
+				change.FileId)
+			skip = true
+		} else {
+			err = fmt.Errorf("change does not contain file metadata and its fileID '%s' was not found within the index", change.FileId)
+		}
+		return
+	}
+	fileName = fi.Name
+	fileIsFolder = fi.Folder
 	return
 }
