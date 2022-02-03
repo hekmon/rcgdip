@@ -59,7 +59,7 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	c.logger.Debugf("[DriveWatcher] index updating in %v, currently containing %d nodes", time.Since(indexStart), len(c.state.Index))
+	c.logger.Debugf("[DriveWatcher] index updated in %v, currently containing %d nodes", time.Since(indexStart), len(c.state.Index))
 	// Process each event
 	changedFiles = make([]fileChange, 0, len(changes))
 	var fc *fileChange
