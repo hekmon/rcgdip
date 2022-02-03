@@ -1,6 +1,7 @@
 package gdrivewatcher
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 )
@@ -10,18 +11,33 @@ const (
 	stateRootFolderIDKey  = "rootFolderID"
 )
 
-func (c *Controller) validateState() (err error) {
-	c.logger.Info("[DriveWatcher] validating state...")
-	var valid bool
+func (c *Controller) validateStateAgainstRemoteDrive() (err error) {
+	c.logger.Info("[DriveWatcher] validating local state against remote drive...")
+	var (
+		valid           bool
+		remoteRootID    string
+		remoteRootInfos *driveFileBasicInfo
+	)
+	// Get the current remote rootID to see if we are still accessing the same drive
+	if remoteRootID, remoteRootInfos, err = c.getDriveRootFileInfo(); err != nil {
+		err = fmt.Errorf("failed to get remote root drive id infos: %w", err)
+		return
+	}
 	// If the remote drive does not validate, invalid our local state
 	defer func() {
 		if !valid {
+			// Clear state and index
 			if err = c.state.Clear(); err != nil {
 				err = fmt.Errorf("failed to clean the state: %w", err)
 				return
 			}
 			if err = c.index.Clear(); err != nil {
 				err = fmt.Errorf("failed to clean the index: %w", err)
+				return
+			}
+			// Insert the first index item: root folder
+			if err = c.index.Set(remoteRootID, remoteRootInfos); err != nil {
+				err = fmt.Errorf("failed to save root folder file infos within the local index: %w", err)
 				return
 			}
 		}
@@ -36,13 +52,7 @@ func (c *Controller) validateState() (err error) {
 		return
 	}
 	if !found {
-		c.logger.Info("[DriveWatcher] no root folderID found, starting a new state")
-		return
-	}
-	// Get the current remote rootID to see if we are still accessing the same drive
-	remoteRootID, rootInfos, err := c.getRootInfo()
-	if err != nil {
-		err = fmt.Errorf("failed to get remote root drive id infos: %w", err)
+		c.logger.Info("[DriveWatcher] no stored root folderID found, starting a new state")
 		return
 	}
 	// Check
@@ -60,9 +70,9 @@ func (c *Controller) validateState() (err error) {
 		c.logger.Warning("[DriveWatcher] we have a stored rootFolderID but it is not present in our index, invalidating state")
 		return
 	}
-	if !reflect.DeepEqual(storedRootInfo, rootInfos) {
+	if !reflect.DeepEqual(storedRootInfo, remoteRootInfos) {
 		c.logger.Warningf("[DriveWatcher] our cached root property is not the same as remote, invalidating state: %+v -> %+v",
-			storedRootInfo, rootInfos)
+			storedRootInfo, remoteRootInfos)
 		return
 	}
 	// All good
@@ -71,7 +81,7 @@ func (c *Controller) validateState() (err error) {
 	return
 }
 
-func (c *Controller) initState() (err error) {
+func (c *Controller) populate() (err error) {
 	var found bool
 	// StartNextPage
 	var nextStartPage string
@@ -86,18 +96,17 @@ func (c *Controller) initState() (err error) {
 		}
 	}
 	// Index
-	if nbKeys := c.index.NbKeys(); nbKeys == 0 {
-		var rootFolderID string
-		// Populate the index
-		if rootFolderID, err = c.initialIndexBuild(); err != nil {
+	nbKeys := c.index.NbKeys()
+	switch nbKeys {
+	case 0:
+		return errors.New("local index contains 0 keys: initialization must has gone wrong as at least 1 key (root folder) should be present")
+	case 1:
+		if err = c.initialIndexBuild(); err != nil {
 			err = fmt.Errorf("failed to index the drive: %w", err)
 			return
 		}
-		// Save the rootfolder id within our state
-		if err = c.state.Set(stateRootFolderIDKey, rootFolderID); err != nil {
-			err = fmt.Errorf("failed to save the drive root folder id: %w", err)
-			return
-		}
+	default:
+		c.logger.Debugf("[DriveWatcher] local index contains %d nodes", nbKeys)
 	}
 	return
 }

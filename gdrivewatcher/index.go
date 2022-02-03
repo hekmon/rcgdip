@@ -1,9 +1,10 @@
 package gdrivewatcher
 
 import (
-	"errors"
 	"fmt"
 	"time"
+
+	"google.golang.org/api/drive/v3"
 )
 
 type driveFileBasicInfo struct {
@@ -12,47 +13,46 @@ type driveFileBasicInfo struct {
 	Parents []string `json:"parentsID"`
 }
 
-func (c *Controller) initialIndexBuild() (rootFolderID string, err error) {
+func (c *Controller) initialIndexBuild() (err error) {
 	c.logger.Infof("[DriveWatcher] building the initial index...")
-	// Get all the things, ahem files
 	start := time.Now()
-	files, err := c.getListPage("")
-	if err != nil {
-		err = fmt.Errorf("recovering file listgin from Google Drive failed: %w", err)
-		return
-	}
-	// Build the index with the infos
-	lookupList := make([]string, 0, len(files))
-	for _, file := range files {
-		// Add file info to the index
-		if err = c.index.Set(file.Id, driveFileBasicInfo{
-			Name:    file.Name,
-			Folder:  file.MimeType == folderMimeType,
-			Parents: file.Parents,
-		}); err != nil {
-			err = fmt.Errorf("failed to save file infos for fileID '%s' within the local index: %w", file.Id, err)
+	// Get all the things, ahem files
+	var (
+		pageFiles        []*drive.File
+		nextPageToken    string
+		lastStatsUpdate  time.Time
+		pagesFetched     int
+		nbFilesRecovered int
+	)
+	for {
+		// Get page listing
+		if pageFiles, nextPageToken, err = c.getDriveListing(nextPageToken); err != nil {
+			err = fmt.Errorf("recovering file listing from Google Drive failed: %w", err)
 			return
 		}
-		// Mark its parents for search during consolidate (actually all parents are within the listing except... the root folder)
-		for _, parent := range file.Parents {
-			if !c.index.Has(parent) {
-				lookupList = append(lookupList, parent)
+		pagesFetched++
+		nbFilesRecovered += len(pageFiles)
+		// Build the index with the infos
+		for _, file := range pageFiles {
+			if err = c.index.Set(file.Id, driveFileBasicInfo{
+				Name:    file.Name,
+				Folder:  file.MimeType == folderMimeType,
+				Parents: file.Parents,
+			}); err != nil {
+				err = fmt.Errorf("failed to save file infos for fileID '%s' within the local index: %w", file.Id, err)
+				return
 			}
 		}
-	}
-	// Consolidate (for absolute root folder id)
-	if err = c.recursivelyDiscoverFiles(lookupList); err != nil {
-		err = fmt.Errorf("failed to consolidate index after initial build up: %w", err)
-		return
-	}
-	// Check we have a root folder ID within our index after populating it
-	if rootFolderID, err = c.getIndexRootFolder(); err != nil {
-		err = fmt.Errorf("failed to recover the root folder ID within our index: %w", err)
-		return
-	}
-	if rootFolderID == "" {
-		err = errors.New("something must have gone wrong during the index building: can not find the root folder fileID")
-		return
+		// Listing over ?
+		if nextPageToken == "" {
+			break
+		}
+		// Put some stats out every minute as indexing can be quite long
+		if time.Since(lastStatsUpdate) >= time.Minute {
+			c.logger.Infof("[DriveWatcher] index building: so far %d list pages(s) has been recovered for a total of %d files",
+				pagesFetched, nbFilesRecovered)
+			lastStatsUpdate = time.Now()
+		}
 	}
 	// Done
 	if c.logger.IsInfoShown() {
@@ -62,15 +62,14 @@ func (c *Controller) initialIndexBuild() (rootFolderID string, err error) {
 	return
 }
 
+// TODO: check if not already in index before looking them up
 func (c *Controller) recursivelyDiscoverFiles(ids []string) (err error) {
-	var (
-		fileInfo *driveFileBasicInfo
-	)
-	// Search all IDs
+	var fileInfo *driveFileBasicInfo
 	lookupList := make([]string, 0, len(ids))
+	// Search all provided IDs
 	for _, fileID := range ids {
 		// Get file infos
-		if fileInfo, err = c.getFileInfo(fileID); err != nil {
+		if fileInfo, err = c.getDriveFileInfo(fileID); err != nil {
 			err = fmt.Errorf("failed to get file info for fileID %s: %w", fileID, err)
 			return
 		}
@@ -95,20 +94,5 @@ func (c *Controller) recursivelyDiscoverFiles(ids []string) (err error) {
 		return c.recursivelyDiscoverFiles(lookupList)
 	}
 	// Every files has been searched and have their info now, time to return for real
-	return
-}
-
-func (c *Controller) getIndexRootFolder() (rootFolderID string, err error) {
-	var fileInfos driveFileBasicInfo
-	for _, fileID := range c.index.Keys() {
-		if _, err = c.index.Get(fileID, &fileInfos); err != nil {
-			err = fmt.Errorf("failed to get info from index for fileID '%s': %w", fileID, err)
-			return
-		}
-		if len(fileInfos.Parents) == 0 {
-			rootFolderID = fileID
-			return
-		}
-	}
 	return
 }

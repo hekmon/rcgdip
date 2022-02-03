@@ -126,3 +126,5 @@ func handleSignals() {
 		}
 	}
 }
+
+// TODO systemd notifs on non systemd run

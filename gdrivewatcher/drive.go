@@ -12,9 +12,10 @@ import (
 )
 
 const (
+	requestPerMin   = 300 / 2 // Let's share with rclone https://developers.google.com/docs/api/limits
 	scopePrefix     = "https://www.googleapis.com/auth/"
-	maxFilesPerPage = 1000
 	folderMimeType  = "application/vnd.google-apps.folder"
+	maxFilesPerPage = 1000
 )
 
 func (c *Controller) initDriveClient() (err error) {
@@ -33,7 +34,7 @@ func (c *Controller) initDriveClient() (err error) {
 	return
 }
 
-func (c *Controller) getListPage(pageToken string) (files []*drive.File, err error) {
+func (c *Controller) getDriveListing(pageToken string) (files []*drive.File, nextPageToken string, err error) {
 	c.logger.Debug("[DriveWatcher] getting a new page of files...")
 	// Build Request
 	listReq := c.driveClient.Files.List()
@@ -71,32 +72,22 @@ func (c *Controller) getListPage(pageToken string) (files []*drive.File, err err
 	c.logger.Debugf("[DriveWatcher] %d file(s) obtained in this page in %v", len(filesList.Files), time.Since(start))
 	// Extract files from answer
 	files = filesList.Files
-	// Is there any pages left ?
-	if filesList.NextPageToken != "" {
-		c.logger.Debugf("[DriveWatcher] another page of files is available at %s", filesList.NextPageToken)
-		var nextPagesfiles []*drive.File
-		if nextPagesfiles, err = c.getListPage(filesList.NextPageToken); err != nil {
-			err = fmt.Errorf("failed to get change list next page: %w", err)
-			return
-		}
-		files = append(files, nextPagesfiles...)
-		return
-	}
+	nextPageToken = filesList.NextPageToken
 	// Done
 	return
 }
 
-func (c *Controller) getRootInfo() (rootID string, infos *driveFileBasicInfo, err error) {
-	return c.getFileInfoComplete("root")
+func (c *Controller) getDriveRootFileInfo() (rootID string, infos *driveFileBasicInfo, err error) {
+	return c.getDriveFileInfoWithID("root")
 }
 
-func (c *Controller) getFileInfo(fileID string) (infos *driveFileBasicInfo, err error) {
-	_, infos, err = c.getFileInfoComplete(fileID)
+func (c *Controller) getDriveFileInfo(fileID string) (infos *driveFileBasicInfo, err error) {
+	_, infos, err = c.getDriveFileInfoWithID(fileID)
 	return
 }
 
-func (c *Controller) getFileInfoComplete(fileID string) (recoveredID string, infos *driveFileBasicInfo, err error) {
-	c.logger.Debugf("[DriveWatcher] requesting information about fileID %s...", fileID)
+func (c *Controller) getDriveFileInfoWithID(fileID string) (recoveredID string, infos *driveFileBasicInfo, err error) {
+	c.logger.Debugf("[DriveWatcher] requesting information about fileID '%s'...", fileID)
 	// Build request
 	fileRequest := c.driveClient.Files.Get(fileID).Context(c.ctx)
 	fileRequest.Fields(googleapi.Field("id"), googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"))
@@ -114,7 +105,7 @@ func (c *Controller) getFileInfoComplete(fileID string) (recoveredID string, inf
 		err = fmt.Errorf("failed to execute file info get API query: %w", err)
 		return
 	}
-	c.logger.Debugf("[DriveWatcher] information about fileID %s recovered in %v", fileID, time.Since(start))
+	c.logger.Debugf("[DriveWatcher] information about fileID '%s' recovered in %v", fileID, time.Since(start))
 	// Extract data
 	recoveredID = fii.Id
 	infos = &driveFileBasicInfo{

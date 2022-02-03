@@ -13,10 +13,6 @@ import (
 	"google.golang.org/api/drive/v3"
 )
 
-const (
-	requestPerMin = 300 / 2 // Let's share with rclone https://developers.google.com/docs/api/limits
-)
-
 type Config struct {
 	RClone       rcsnooper.Config
 	PollInterval time.Duration
@@ -66,7 +62,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		ctx:     ctx,
 		logger:  conf.Logger,
 		rc:      rc,
-		limiter: rate.NewLimiter(rate.Every(time.Minute/requestPerMin), requestPerMin/3),
+		limiter: rate.NewLimiter(rate.Every(time.Minute/requestPerMin), requestPerMin/2),
 		state:   conf.StateBackend,
 		index:   conf.IndexBackend,
 	}
@@ -75,12 +71,12 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		return
 	}
 	// Has the rclone backend changed ?
-	if err = c.validateState(); err != nil {
+	if err = c.validateStateAgainstRemoteDrive(); err != nil {
 		err = fmt.Errorf("failed to validate local state: %w", err)
 		return
 	}
 	// Fresh start ? (or reset)
-	if err = c.initState(); err != nil {
+	if err = c.populate(); err != nil {
 		return
 	}
 	// Workers

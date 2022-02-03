@@ -170,7 +170,7 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 }
 
 func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err error) {
-	c.logger.Debugf("[DriveWatcher] start building the index based on %d change(s)", len(changes))
+	c.logger.Debugf("[DriveWatcher] update the index using %d change(s)", len(changes))
 	// Build the file index starting by infos contained in the change list
 	lookup := make([]string, 0, len(changes))
 	for _, change := range changes {
@@ -248,7 +248,7 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 		}
 		if !found {
 			if change.Removed {
-				c.logger.Warningf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor will be skipped",
+				c.logger.Warningf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor it will be skipped",
 					change.FileId)
 			} else {
 				err = fmt.Errorf("change does not contain file metadata and its fileID '%s' was not found within the index", change.FileId)
@@ -258,6 +258,8 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 		fileName = fi.Name
 		fileIsFolder = fi.Folder
 	}
+	// Purge file from index at the end if deletion
+	// TODO defer
 	// Compute possible paths (bottom up)
 	reversedPaths, err := c.generateReversePaths(change.FileId)
 	if err != nil {
