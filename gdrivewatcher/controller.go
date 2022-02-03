@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	scopePrefix   = "https://www.googleapis.com/auth/"
 	requestPerMin = 300 / 2 // Let's share with rclone https://developers.google.com/docs/api/limits
 )
 
@@ -22,6 +21,19 @@ type Config struct {
 	RClone       rcsnooper.Config
 	PollInterval time.Duration
 	Logger       *hllogger.HlLogger
+	StateBackend Storage
+	IndexBackend Storage
+}
+
+type Storage interface {
+	Clear() error
+	Delete(string) error
+	Get(string, interface{}) (bool, error)
+	Has(string) bool
+	Keys() []string
+	NbKeys() int
+	Set(string, interface{}) error
+	Sync() error
 }
 
 type Controller struct {
@@ -33,9 +45,9 @@ type Controller struct {
 	// Google Drive API client
 	driveClient *drive.Service
 	limiter     *rate.Limiter
-	// State related
-	state       stateData
-	stateAccess sync.Mutex
+	// Storage
+	state Storage
+	index Storage
 	// Workers control plane
 	workers  sync.WaitGroup
 	fullStop chan struct{}
@@ -55,31 +67,21 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		logger:  conf.Logger,
 		rc:      rc,
 		limiter: rate.NewLimiter(rate.Every(time.Minute/requestPerMin), requestPerMin/3),
+		state:   conf.StateBackend,
+		index:   conf.IndexBackend,
 	}
 	if err = c.initDriveClient(); err != nil {
 		err = fmt.Errorf("unable to initialize Drive API client: %w", err)
 		return
 	}
-	// Load state
-	if err = c.restoreState(); err != nil {
-		err = fmt.Errorf("failed to restore state: %w", err)
+	// Has the rclone backend changed ?
+	if err = c.validateState(); err != nil {
+		err = fmt.Errorf("failed to validate local state: %w", err)
 		return
 	}
-	// Has the rclone backend changed ?
-	c.validateRemoteDrive()
 	// Fresh start ? (or reset)
-	if c.state.StartPageToken == "" {
-		if err = c.getChangesStartPage(); err != nil {
-			err = fmt.Errorf("failed to get the start page token from Drive API: %w", err)
-			return
-		}
-	}
-	if c.state.Index == nil {
-		// build Index will extract the root folderID
-		if err = c.initialIndexBuild(); err != nil {
-			err = fmt.Errorf("failed to index the drive: %w", err)
-			return
-		}
+	if err = c.initState(); err != nil {
+		return
 	}
 	// Workers
 	c.fullStop = make(chan struct{})
@@ -91,19 +93,11 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 }
 
 func (c *Controller) stopper() {
-	var err error
 	// Waiting for stop signal
 	<-c.ctx.Done()
 	// Wait for workers to correctly stop
 	c.logger.Debug("[DriveWatcher] waiting for all workers to stop...")
 	c.workers.Wait()
-	// Save the stop
-	c.logger.Debug("[DriveWatcher] all workers stopped")
-	if err = c.SaveState(); err != nil {
-		c.logger.Errorf("[DriveWatcher] failed to save the state: %s", err.Error())
-	} else {
-		c.logger.Infof("[DriveWatcher] state successfully saved into %s", stateFileName)
-	}
 	// Mark full stop
 	close(c.fullStop)
 }

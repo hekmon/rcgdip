@@ -2,7 +2,6 @@ package gdrivewatcher
 
 import (
 	"fmt"
-	"reflect"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -13,6 +12,7 @@ import (
 )
 
 const (
+	scopePrefix     = "https://www.googleapis.com/auth/"
 	maxFilesPerPage = 1000
 	folderMimeType  = "application/vnd.google-apps.folder"
 )
@@ -31,43 +31,6 @@ func (c *Controller) initDriveClient() (err error) {
 	// Init Drive API client on top of that
 	c.driveClient, err = drive.NewService(c.ctx, option.WithHTTPClient(client))
 	return
-}
-
-func (c *Controller) validateRemoteDrive() (valid bool) {
-	// we won't use mutex here as this fx is only called during init
-	c.logger.Info("[DriveWatcher] validating state...")
-	// If the remote drive does not validate, invalid our local state
-	defer func() {
-		if !valid {
-			c.state = stateData{}
-		}
-	}()
-	// First do we have one ?
-	if c.state.RootID == "" {
-		c.logger.Info("[DriveWatcher] no root folderID found, starting a new state")
-		return
-	}
-	// Get the current rootID to see if we are still accessing the same drive
-	rootID, rootInfos, err := c.getRootInfo()
-	if err != nil {
-		c.logger.Warningf("[DriveWatcher] can not get our cached root fileID infos from remote, invalidating state: %s", err)
-		return
-	}
-	// Check
-	if c.state.RootID != rootID {
-		c.logger.Warningf("[DriveWatcher] rootID has changed (%s -> %s), invalidating state", c.state.RootID, rootID)
-		return
-	}
-	if storedRootInfo, found := c.state.Index[rootID]; found {
-		if !reflect.DeepEqual(storedRootInfo, rootInfos) {
-			c.logger.Warningf("[DriveWatcher] our cached root property is not the same as remote, invalidating state: %+v -> %+v",
-				storedRootInfo, rootInfos)
-			return
-		}
-	}
-	// All good
-	c.logger.Debugf("[DriveWatcher] the root folderID '%s' in our local state seems valid", c.state.RootID)
-	return true
 }
 
 func (c *Controller) getListPage(pageToken string) (files []*drive.File, err error) {
@@ -121,12 +84,6 @@ func (c *Controller) getListPage(pageToken string) (files []*drive.File, err err
 	}
 	// Done
 	return
-}
-
-type driveFileBasicInfo struct {
-	Name    string
-	Folder  bool
-	Parents []string
 }
 
 func (c *Controller) getRootInfo() (rootID string, infos *driveFileBasicInfo, err error) {

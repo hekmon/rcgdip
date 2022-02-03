@@ -1,61 +1,103 @@
 package gdrivewatcher
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-
-	"github.com/hekmon/rcgdip/diskstate"
+	"reflect"
 )
 
 const (
-	stateFileName = "drivewatcher_state.json"
+	stateNextStartPageKey = "nextStartPage"
+	stateRootFolderIDKey  = "rootFolderID"
 )
 
-type stateData struct {
-	RootID         string     `json:"root_check"`
-	StartPageToken string     `json:"changes_start_page"`
-	Index          filesIndex `json:"remote_files_index"`
-}
-
-func (c *Controller) restoreState() (err error) {
-	c.logger.Info("[DriveWatcher] restoring state...")
-	var recoveredState stateData
-	// Load from file
-	if err = diskstate.LoadJSON(stateFileName, &recoveredState); err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			err = fmt.Errorf("failed to load state from disk: %w", err)
-			return
+func (c *Controller) validateState() (err error) {
+	c.logger.Info("[DriveWatcher] validating state...")
+	var valid bool
+	// If the remote drive does not validate, invalid our local state
+	defer func() {
+		if !valid {
+			if err = c.state.Clear(); err != nil {
+				err = fmt.Errorf("failed to clean the state: %w", err)
+				return
+			}
+			if err = c.index.Clear(); err != nil {
+				err = fmt.Errorf("failed to clean the index: %w", err)
+				return
+			}
 		}
-		// First run
-		err = nil
-		c.state.Index = nil // mark as non initialized
+	}()
+	// First do we have one ?
+	var (
+		storedRootID string
+		found        bool
+	)
+	if found, err = c.state.Get(stateRootFolderIDKey, &storedRootID); err != nil {
+		err = fmt.Errorf("failed to get the root folder ID from stored state: %w", err)
 		return
 	}
-	// Extract and inject (no need to use mutexes here as we are in the init phase)
-	c.state.RootID = recoveredState.RootID
-	c.state.StartPageToken = recoveredState.StartPageToken
-	c.state.Index = recoveredState.Index
-	// Done
-	c.logger.Debugf("[DriveWatcher] index lodaded from disk containing %d nodes", len(c.state.Index))
+	if !found {
+		c.logger.Info("[DriveWatcher] no root folderID found, starting a new state")
+		return
+	}
+	// Get the current remote rootID to see if we are still accessing the same drive
+	remoteRootID, rootInfos, err := c.getRootInfo()
+	if err != nil {
+		err = fmt.Errorf("failed to get remote root drive id infos: %w", err)
+		return
+	}
+	// Check
+	if storedRootID != remoteRootID {
+		c.logger.Warningf("[DriveWatcher] rootID has changed (%s -> %s), invalidating state", storedRootID, remoteRootID)
+		return
+	}
+	// Validate index
+	var storedRootInfo driveFileBasicInfo
+	if found, err = c.index.Get(storedRootID, &storedRootInfo); err != nil {
+		err = fmt.Errorf("failed to get the root folder ID infos from stored index: %w", err)
+		return
+	}
+	if !found {
+		c.logger.Warning("[DriveWatcher] we have a stored rootFolderID but it is not present in our index, invalidating state")
+		return
+	}
+	if !reflect.DeepEqual(storedRootInfo, rootInfos) {
+		c.logger.Warningf("[DriveWatcher] our cached root property is not the same as remote, invalidating state: %+v -> %+v",
+			storedRootInfo, rootInfos)
+		return
+	}
+	// All good
+	c.logger.Debugf("[DriveWatcher] the root folderID '%s' in our local state seems valid", storedRootID)
+	valid = true
 	return
 }
 
-func (c *Controller) SaveState() (err error) {
-	c.logger.Info("[DriveWatcher] saving state...")
-	// Build the state file (lock the mutex in case the work is running a batch)
-	defer c.stateAccess.Unlock()
-	c.stateAccess.Lock()
-	state := stateData{
-		RootID:         c.state.RootID,
-		StartPageToken: c.state.StartPageToken,
-		Index:          c.state.Index,
-	}
-	// Dump it to disk
-	if err = diskstate.SaveJSON(stateFileName, state, c.logger.IsDebugShown()); err != nil {
-		err = fmt.Errorf("failed to dump state to disk: %w", err)
+func (c *Controller) initState() (err error) {
+	var found bool
+	// StartNextPage
+	var nextStartPage string
+	if found, err = c.state.Get(stateNextStartPageKey, &nextStartPage); err != nil {
+		err = fmt.Errorf("failed to get the start page token from our local storage: %w", err)
 		return
 	}
-	c.logger.Debugf("[DriveWatcher] saved %d index nodes to disk", len(c.state.Index))
+	if !found {
+		if err = c.getChangesStartPage(); err != nil {
+			err = fmt.Errorf("failed to get the start page token from Drive API: %w", err)
+			return
+		}
+	}
+	// Index
+	if nbKeys := c.index.NbKeys(); nbKeys == 0 {
+		var rootFolderID string
+		// Populate the index
+		if rootFolderID, err = c.initialIndexBuild(); err != nil {
+			err = fmt.Errorf("failed to index the drive: %w", err)
+			return
+		}
+		// Save the rootfolder id within our state
+		if err = c.state.Set(stateRootFolderIDKey, rootFolderID); err != nil {
+			err = fmt.Errorf("failed to save the drive root folder id: %w", err)
+			return
+		}
+	}
 	return
 }

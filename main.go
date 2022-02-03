@@ -69,6 +69,8 @@ func main() {
 		},
 		PollInterval: devpollinterval,
 		Logger:       logger,
+		StateBackend: db.NewScoppedAccess("drive_state"),
+		IndexBackend: db.NewScoppedAccess("drive_index"),
 	}); err != nil {
 		logger.Fatalf(1, "[Main] failed to initialize the Google Drive watcher: %s", err.Error())
 	}
@@ -94,16 +96,7 @@ func handleSignals() {
 	for sig = range signalChannel {
 		switch sig {
 		case syscall.SIGUSR1:
-			if err = sysdnotify.Reloading(); err != nil {
-				logger.Errorf("[Main] can't send systemd reloading notification: %v", err)
-			}
-			logger.Infof("[Main] signal '%v' caught: saving state to disk now")
-			if err = driveWatcher.SaveState(); err != nil {
-				logger.Infof("[DriveWatcher] failed to save state to disk: %s", err.Error())
-			}
-			if err = sysdnotify.Ready(); err != nil {
-				logger.Errorf("[Main] can't send systemd ready notification: %v", err)
-			}
+			// TODO backup db
 		case syscall.SIGTERM:
 			fallthrough
 		case syscall.SIGINT:

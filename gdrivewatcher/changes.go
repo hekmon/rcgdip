@@ -14,7 +14,7 @@ const (
 )
 
 func (c *Controller) getChangesStartPage() (err error) {
-	// we won't use mutex here as this fx is only called during init
+	// Get start page token
 	changesReq := c.driveClient.Changes.GetStartPageToken().Context(c.ctx)
 	if c.rc.Drive.TeamDrive != "" {
 		changesReq.SupportsAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
@@ -23,7 +23,11 @@ func (c *Controller) getChangesStartPage() (err error) {
 	if err != nil {
 		return
 	}
-	c.state.StartPageToken = changesStart.StartPageToken
+	// Save it
+	if err = c.state.Set(stateNextStartPageKey, changesStart.StartPageToken); err != nil {
+		err = fmt.Errorf("failed to save the startPageToken within our state: %w", err)
+		return
+	}
 	return
 }
 
@@ -35,19 +39,30 @@ type fileChange struct {
 }
 
 func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
-	// Lock the state during the complete changes handling process (in case a save request is received during the run)
-	defer c.stateAccess.Unlock()
-	c.stateAccess.Lock()
 	// Save the start token in case something goes wrong for future retry
-	backupStartToken := c.state.StartPageToken
+	var (
+		backupStartToken string
+		found            bool
+	)
+	if found, err = c.state.Get(stateNextStartPageKey, &backupStartToken); err != nil {
+		err = fmt.Errorf("failed to get the start page token from stored state: %w", err)
+		return
+	}
+	if !found {
+		err = fmt.Errorf("start page token not found within stored state: %w", err)
+		return
+	}
 	defer func() {
 		if err != nil {
-			c.state.StartPageToken = backupStartToken
+			if setErr := c.state.Set(stateNextStartPageKey, backupStartToken); setErr != nil {
+				err = fmt.Errorf("2 errors: %w | failed to restore the startPageToken within our state: %s", err, setErr)
+				return
+			}
 		}
 	}()
 	// Get changes
 	start := time.Now()
-	changes, err := c.fetchChanges(c.state.StartPageToken)
+	changes, err := c.fetchChanges(backupStartToken)
 	if err != nil {
 		err = fmt.Errorf("failed to get all changes recursively: %w", err)
 		return
@@ -59,7 +74,10 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	c.logger.Debugf("[DriveWatcher] index updated in %v, currently containing %d nodes", time.Since(indexStart), len(c.state.Index))
+	if c.logger.IsDebugShown() {
+		// NbKeys has a performance hit
+		c.logger.Debugf("[DriveWatcher] index updated in %v, currently containing %d nodes", time.Since(indexStart), c.index.NbKeys())
+	}
 	// Process each event
 	changedFiles = make([]fileChange, 0, len(changes))
 	var fc *fileChange
@@ -131,13 +149,16 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 		changes = append(changes, nextPagesChanges...)
 		return
 	}
-	// We are the last page of results
-	if changeList.NewStartPageToken != "" {
-		c.logger.Debugf("[DriveWatcher] no more changes pages, recovering the marker for next run: %s", changeList.NewStartPageToken)
-		// save new start token for next run
-		c.state.StartPageToken = changeList.NewStartPageToken
-	} else {
+	// We are the last page of results, save token for next run
+	if changeList.NewStartPageToken == "" {
 		err = errors.New("end of changelist should contain NewStartPageToken")
+		return
+	}
+	c.logger.Debugf("[DriveWatcher] no more changes pages, recovering the marker for next run: %s", changeList.NewStartPageToken)
+	// save new start token for next run
+	if err = c.state.Set(stateNextStartPageKey, changeList.NewStartPageToken); err != nil {
+		err = fmt.Errorf("failed to save the nextStartPageToken within local state: %w", err)
+		return
 	}
 	// Done
 	if c.logger.IsDebugShown() {
@@ -151,6 +172,7 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err error) {
 	c.logger.Debugf("[DriveWatcher] start building the index based on %d change(s)", len(changes))
 	// Build the file index starting by infos contained in the change list
+	lookup := make([]string, 0, len(changes))
 	for _, change := range changes {
 		// Skip is the change is drive metadata related
 		if change.ChangeType != "file" {
@@ -164,22 +186,35 @@ func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err err
 		// Sometimes the file field come back empty, no idea why
 		if change.File == nil {
 			c.logger.Warningf("[DriveWatcher] file change for fileID %s had its file metadata empty, adding it to the lookup list", change.FileId) // TODO must be related to removal, reevalute with statefull index
-			c.state.Index[change.FileId] = nil
 			continue
 		}
-		// Extract known info for this file
-		c.state.Index[change.FileId] = &driveFileBasicInfo{
+		// Update index with infos
+		if err = c.index.Set(change.FileId, driveFileBasicInfo{
 			Name:    change.File.Name,
 			Folder:  change.File.MimeType == folderMimeType,
 			Parents: change.File.Parents,
+		}); err != nil {
+			err = fmt.Errorf("failed to saved fileID '%s' within the local index: %w", change.FileId, err)
+			return
 		}
 		// Add its parents for search
-		for _, parent := range change.File.Parents {
-			c.state.Index[parent] = nil
+		var found bool
+		for _, parentID := range change.File.Parents {
+			// add parent to lookup if not already in changes
+			found = false
+			for _, changeCheck := range changes {
+				if changeCheck.FileId == parentID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				lookup = append(lookup, parentID)
+			}
 		}
 	}
 	// Found out all missing parents infos
-	if err = c.consolidateIndex(); err != nil {
+	if err = c.recursivelyDiscoverFiles(lookup); err != nil {
 		err = fmt.Errorf("failed to recover all parents files infos: %w", err)
 		return
 	}
@@ -204,10 +239,14 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 		fileTrashed = change.File.Trashed
 	} else {
 		var (
-			fi    *driveFileBasicInfo
+			fi    driveFileBasicInfo
 			found bool
 		)
-		if fi, found = c.state.Index[change.FileId]; !found {
+		if found, err = c.index.Get(change.FileId, &fi); err != nil {
+			err = fmt.Errorf("failed to get fileID '%s' infos from local index: %w", change.FileId, err)
+			return
+		}
+		if !found {
 			if change.Removed {
 				c.logger.Warningf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor will be skipped",
 					change.FileId)
