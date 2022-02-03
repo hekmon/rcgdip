@@ -15,7 +15,7 @@ import (
 
 const (
 	scopePrefix   = "https://www.googleapis.com/auth/"
-	requestPerMin = 300 // https://developers.google.com/docs/api/limits
+	requestPerMin = 300 / 2 // Let's share with rclone https://developers.google.com/docs/api/limits
 )
 
 type Config struct {

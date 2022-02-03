@@ -55,12 +55,13 @@ func (c *Controller) validateRemoteDrive() (valid bool) {
 	}
 	// Check
 	if c.state.RootID != rootID {
-		c.logger.Warningf("[DriveWatcher] rootID has changed (%s -> %s), invalidating state: %s", c.state.RootID, rootID, err)
+		c.logger.Warningf("[DriveWatcher] rootID has changed (%s -> %s), invalidating state", c.state.RootID, rootID)
 		return
 	}
 	if storedRootInfo, found := c.state.Index[rootID]; found {
 		if !reflect.DeepEqual(storedRootInfo, rootInfos) {
-			c.logger.Warningf("[DriveWatcher] our cached root property is not the same as remote, invalidating state: %s", err)
+			c.logger.Warningf("[DriveWatcher] our cached root property is not the same as remote, invalidating state: %+v -> %+v",
+				storedRootInfo, rootInfos)
 			return
 		}
 	}

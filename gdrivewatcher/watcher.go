@@ -34,12 +34,14 @@ func (c *Controller) workerPass() {
 	for _, change := range changesFiles {
 		fmt.Printf("%v %v %v", change.Event, change.Deleted, change.Folder)
 		for _, path := range change.Paths {
-			fmt.Printf("\t%s -> ", path)
-			decryptedPath, err := c.rc.CryptCipher.DecryptFileName(path)
-			if err != nil {
-				panic(err)
+			fmt.Printf("\t%s", path)
+			if c.rc.CryptCipher != nil {
+				decryptedPath, err := c.rc.CryptCipher.DecryptFileName(path)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Printf(" -> %s", decryptedPath)
 			}
-			fmt.Print(decryptedPath)
 		}
 		fmt.Println()
 	}
