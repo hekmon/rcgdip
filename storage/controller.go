@@ -75,17 +75,25 @@ func (c *Controller) Stop() {
 }
 
 func (c *Controller) updateKeysStat(keyLength int) {
-	c.statsAccess.Lock()
-	if keyLength > c.maxSizeKey {
-		c.maxSizeKey = keyLength
-	}
-	c.statsAccess.Unlock()
+	c.workers.Add(1)
+	go func() {
+		c.statsAccess.Lock()
+		if keyLength > c.maxSizeKey {
+			c.maxSizeKey = keyLength
+		}
+		c.statsAccess.Unlock()
+		c.workers.Done()
+	}()
 }
 
 func (c *Controller) updateValuesStat(valueLength int) {
-	c.statsAccess.Lock()
-	if valueLength > c.maxSizeKey {
-		c.maxSizeValue = valueLength
-	}
-	c.statsAccess.Unlock()
+	c.workers.Add(1)
+	go func() {
+		c.statsAccess.Lock()
+		if valueLength > c.maxSizeValue {
+			c.maxSizeValue = valueLength
+		}
+		c.statsAccess.Unlock()
+		c.workers.Done()
+	}()
 }

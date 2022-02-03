@@ -90,10 +90,9 @@ func (sb *RealmController) Set(key string, marshall2JSON interface{}) (err error
 	if err = sb.main.db.Put(sb.fqdnKey(key), rawValue); err != nil {
 		return
 	}
-	// All good
-	sb.main.workers.Add(2)
-	go sb.main.updateKeysStat(len(absoluteKey))
-	go sb.main.updateValuesStat(len(rawValue))
+	// All good, update stats
+	sb.main.updateKeysStat(len(absoluteKey))
+	sb.main.updateValuesStat(len(rawValue))
 	return
 }
 
