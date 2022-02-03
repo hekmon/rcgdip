@@ -9,6 +9,7 @@ import (
 
 	"github.com/hekmon/rcgdip/gdrivewatcher"
 	"github.com/hekmon/rcgdip/gdrivewatcher/rcsnooper"
+	"github.com/hekmon/rcgdip/storage"
 
 	"github.com/hekmon/hllogger"
 	sysd "github.com/iguanesolutions/go-systemd/v5"
@@ -18,6 +19,7 @@ import (
 var (
 	// Controllers
 	logger       *hllogger.HlLogger
+	db           *storage.Controller
 	driveWatcher *gdrivewatcher.Controller
 	// Clean stop
 	mainCtxCancel func()
@@ -48,8 +50,17 @@ func main() {
 	mainStop = make(chan struct{})
 	go handleSignals()
 
+	// Init storage
+	logger.Info("[Main] initializing the storage backend...")
+	if db, err = storage.New(storage.Config{
+		Instance: "test",
+		Logger:   logger,
+	}); err != nil {
+		logger.Fatalf(1, "[Main] failed to initialize storage: %s", err.Error())
+	}
+
 	// Initialize GDrive controller
-	logger.Info("[Main] Initializing the Google Drive watcher...")
+	logger.Info("[Main] initializing the Google Drive watcher...")
 	if driveWatcher, err = gdrivewatcher.New(mainCtx, gdrivewatcher.Config{
 		RClone: rcsnooper.Config{
 			RCloneConfigPath: devrcloneconfigpath,
@@ -114,6 +125,8 @@ func handleSignals() {
 			// Cancel main ctx to send stop signal & wait for all
 			mainCtxCancel()
 			wg.Wait()
+			// All workers have exited, clean stop the db
+			db.Stop()
 			return
 		default:
 			logger.Warningf("[Main] Signal '%v' caught but no process set to handle it: skipping", sig)
