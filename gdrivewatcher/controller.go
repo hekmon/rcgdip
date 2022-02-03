@@ -19,6 +19,7 @@ type Config struct {
 	Logger       *hllogger.HlLogger
 	StateBackend Storage
 	IndexBackend Storage
+	KillSwitch   func()
 }
 
 type Storage interface {
@@ -34,8 +35,9 @@ type Storage interface {
 
 type Controller struct {
 	// Global
-	ctx    context.Context
-	logger *hllogger.HlLogger
+	ctx        context.Context
+	logger     *hllogger.HlLogger
+	killSwitch func()
 	// RClone Snooper
 	rc *rcsnooper.Controller
 	// Google Drive API client
@@ -59,24 +61,16 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 	conf.Logger.Infof("[DriveWatcher] %s", rc.Summary())
 	// Then we initialize ourself
 	c = &Controller{
-		ctx:     ctx,
-		logger:  conf.Logger,
-		rc:      rc,
-		limiter: rate.NewLimiter(rate.Every(time.Minute/requestPerMin), requestPerMin/2),
-		state:   conf.StateBackend,
-		index:   conf.IndexBackend,
+		ctx:        ctx,
+		logger:     conf.Logger,
+		killSwitch: conf.KillSwitch,
+		rc:         rc,
+		limiter:    rate.NewLimiter(rate.Every(time.Minute/requestPerMin), requestPerMin/2),
+		state:      conf.StateBackend,
+		index:      conf.IndexBackend,
 	}
 	if err = c.initDriveClient(); err != nil {
 		err = fmt.Errorf("unable to initialize Drive API client: %w", err)
-		return
-	}
-	// Has the rclone backend changed ?
-	if err = c.validateStateAgainstRemoteDrive(); err != nil {
-		err = fmt.Errorf("failed to validate local state: %w", err)
-		return
-	}
-	// Fresh start ? (or reset)
-	if err = c.populate(); err != nil {
 		return
 	}
 	// Workers

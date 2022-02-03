@@ -40,9 +40,14 @@ func (c *Controller) validateStateAgainstRemoteDrive() (err error) {
 				err = fmt.Errorf("failed to save root folder file infos within the local index: %w", err)
 				return
 			}
+			// Store the root folder ID within the state
+			if err = c.state.Set(stateRootFolderIDKey, remoteRootID); err != nil {
+				err = fmt.Errorf("failed to save root folder fileID within the local state: %w", err)
+				return
+			}
 		}
 	}()
-	// First do we have one ?
+	// First do we have a stored rootID ?
 	var (
 		storedRootID string
 		found        bool
@@ -60,7 +65,7 @@ func (c *Controller) validateStateAgainstRemoteDrive() (err error) {
 		c.logger.Warningf("[DriveWatcher] rootID has changed (%s -> %s), invalidating state", storedRootID, remoteRootID)
 		return
 	}
-	// Validate index
+	// Validate index based on root file info
 	var storedRootInfo driveFileBasicInfo
 	if found, err = c.index.Get(storedRootID, &storedRootInfo); err != nil {
 		err = fmt.Errorf("failed to get the root folder ID infos from stored index: %w", err)
@@ -70,9 +75,9 @@ func (c *Controller) validateStateAgainstRemoteDrive() (err error) {
 		c.logger.Warning("[DriveWatcher] we have a stored rootFolderID but it is not present in our index, invalidating state")
 		return
 	}
-	if !reflect.DeepEqual(storedRootInfo, remoteRootInfos) {
+	if !reflect.DeepEqual(storedRootInfo, *remoteRootInfos) {
 		c.logger.Warningf("[DriveWatcher] our cached root property is not the same as remote, invalidating state: %+v -> %+v",
-			storedRootInfo, remoteRootInfos)
+			storedRootInfo, *remoteRootInfos)
 		return
 	}
 	// All good

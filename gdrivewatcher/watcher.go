@@ -6,11 +6,27 @@ import (
 )
 
 func (c *Controller) watcher(interval time.Duration) {
+	// Prepare
 	defer c.workers.Done()
-	// Start the watch
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	c.logger.Infof("[DriveWatcher] next round in %v", interval)
+	// Has the rclone backend changed ?
+	if err := c.validateStateAgainstRemoteDrive(); err != nil {
+		c.logger.Errorf("[DriveWatcher] failed to validate local state: %s", err)
+		if c.ctx.Err() == nil {
+			c.killSwitch()
+		}
+		return
+	}
+	// Fresh start ? (or reset)
+	if err := c.populate(); err != nil {
+		c.logger.Errorf("[DriveWatcher] failed to initialize local state: %s", err)
+		if c.ctx.Err() == nil {
+			c.killSwitch()
+		}
+		return
+	}
+	// Start the watch
 	for {
 		select {
 		case <-ticker.C:
@@ -23,7 +39,7 @@ func (c *Controller) watcher(interval time.Duration) {
 }
 
 func (c *Controller) workerPass() {
-	c.logger.Infof("[DriveWatcher] new worker round !")
+	c.logger.Infof("[DriveWatcher] checking changes...")
 	// Compute the paths containing changes
 	changesFiles, err := c.getFilesChanges()
 	if err != nil {
