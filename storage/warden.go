@@ -7,8 +7,9 @@ import (
 )
 
 const (
-	wardenFreq   = 1 * time.Minute
-	minToReclain = cunits.Bits(10) * cunits.MiB
+	wardenFreq          = 1 * time.Minute
+	minPercentToReclain = 0.1
+	minSizeToReclaim    = cunits.Bits(100) * cunits.MiB
 )
 
 func (c *Controller) warden() {
@@ -30,26 +31,31 @@ func (c *Controller) warden() {
 
 func (c *Controller) wardenPass() {
 	c.logger.Debug("[Storage] checking db...")
+	// Show stats
+	stats, err := c.db.Stats()
+	if err != nil {
+		c.logger.Errorf("[Storage] failed to get db stats: %s", err.Error())
+		return
+	}
+	totalSize := cunits.ImportInByte(float64(stats.Size))
+	c.logger.Infof("[Storage] db stats: %d data files, %d keys for %s on disk",
+		stats.Datafiles, stats.Keys, totalSize)
 	// Compact db
 	reclaimableSize := cunits.ImportInByte(float64(c.db.Reclaimable()))
 	if reclaimableSize > 0 {
-		if reclaimableSize >= minToReclain {
-			c.logger.Infof("[Storage] reclaiming %s disk space...", reclaimableSize)
+		percentReclaimable := float64(reclaimableSize) / float64(totalSize)
+		if percentReclaimable >= minPercentToReclain || reclaimableSize >= minSizeToReclaim {
+			c.logger.Infof("[Storage] reclaiming %s (%.02f%% of total db size) disk space...",
+				reclaimableSize, percentReclaimable*100)
 			if err := c.db.Merge(); err != nil {
-				c.logger.Errorf("[Storage] failed to reclaim %s of disk space: %s",
-					reclaimableSize, err.Error())
+				c.logger.Errorf("[Storage] failed to reclaim disk space: %s", err.Error())
 			} else {
-				c.logger.Infof("[Storage] successfully reclaimed %s of disk space", reclaimableSize)
+				c.logger.Infof("[Storage] successfully reclaimed %s (%.02f%% of total db size) of disk space",
+					reclaimableSize, percentReclaimable*100)
 			}
 		} else {
-			c.logger.Debugf("[Storage] reclaimable space is too low to performe a merge: %s < %s", reclaimableSize, minToReclain)
+			c.logger.Debugf("[Storage] reclaimable space is too low to performe a merge: %.02f%% representing %s",
+				percentReclaimable*100, reclaimableSize)
 		}
-	}
-	// Show stats
-	if stats, err := c.db.Stats(); err != nil {
-		c.logger.Errorf("[Storage] failed to get db stats: %s", err.Error())
-	} else {
-		c.logger.Infof("[Storage] db stats: %d data files, %d keys for %s on disk",
-			stats.Datafiles, stats.Keys, cunits.ImportInByte(float64(stats.Size)))
 	}
 }
