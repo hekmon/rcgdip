@@ -95,10 +95,8 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 	if len(changedFiles) != len(changes) {
 		c.logger.Debugf("[DriveWatcher] filtered out %d change(s) that was not a file change", len(changes)-len(changedFiles))
 	}
-	// Cleaning the index
-	// TODO
 	// Done
-	c.logger.Infof("[DriveWatcher] %d valid change(s) compiled in %v", len(changedFiles), time.Since(start))
+	c.logger.Infof("[DriveWatcher] %d valid change(s) on %d recovered change(s) compiled in %v", len(changedFiles), len(changes), time.Since(start))
 	return
 }
 
@@ -180,12 +178,12 @@ func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err err
 		}
 		// If file deleted, we won't have any information. To make it valid, we must have it within our index
 		if change.Removed {
-			c.logger.Warningf("[DriveWatcher] file change for fileID %s is removal, we won't have any data about it anymore", change.FileId) // TODO remove with statefull index
 			continue
 		}
 		// Sometimes the file field come back empty, no idea why
 		if change.File == nil {
-			c.logger.Warningf("[DriveWatcher] file change for fileID %s had its file metadata empty, adding it to the lookup list", change.FileId) // TODO must be related to removal, reevalute with statefull index
+			// should not happen if not remove change event
+			c.logger.Warningf("[DriveWatcher] file change for fileID %s had its file metadata empty, adding it to the lookup list", change.FileId)
 			continue
 		}
 		// Update index with infos

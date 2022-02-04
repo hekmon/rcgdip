@@ -39,7 +39,7 @@ func (c *Controller) watcher(interval time.Duration) {
 }
 
 func (c *Controller) workerPass() {
-	c.logger.Infof("[DriveWatcher] checking changes...")
+	c.logger.Debug("[DriveWatcher] checking changes...")
 	// Compute the paths containing changes
 	changesFiles, err := c.getFilesChanges()
 	if err != nil {
