@@ -1,6 +1,7 @@
 package gdrivewatcher
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,10 +13,12 @@ import (
 )
 
 const (
-	requestPerMin   = 300 / 2 // Let's share with rclone https://developers.google.com/docs/api/limits
-	scopePrefix     = "https://www.googleapis.com/auth/"
-	folderMimeType  = "application/vnd.google-apps.folder"
-	maxFilesPerPage = 1000
+	requestPerMin     = 300 / 2 // Let's share with rclone https://developers.google.com/docs/api/limits
+	scopePrefix       = "https://www.googleapis.com/auth/"
+	folderMimeType    = "application/vnd.google-apps.folder"
+	maxFilesPerPage   = 1000
+	maxChangesPerPage = 1000
+	devMode           = false
 )
 
 func (c *Controller) initDriveClient() (err error) {
@@ -34,6 +37,20 @@ func (c *Controller) initDriveClient() (err error) {
 	return
 }
 
+func (c *Controller) getDriveChangesStartPage() (changesStartToken string, err error) {
+	// Get start page token
+	changesReq := c.driveClient.Changes.GetStartPageToken().Context(c.ctx)
+	if c.rc.Drive.TeamDrive != "" {
+		changesReq.SupportsAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
+	}
+	changesStart, err := changesReq.Do()
+	if err != nil {
+		return
+	}
+	changesStartToken = changesStart.StartPageToken
+	return
+}
+
 func (c *Controller) getDriveListing(pageToken string) (files []*drive.File, nextPageToken string, err error) {
 	c.logger.Debug("[DriveWatcher] getting a new page of files...")
 	// Build Request
@@ -47,13 +64,10 @@ func (c *Controller) getDriveListing(pageToken string) (files []*drive.File, nex
 	if pageToken != "" {
 		listReq.PageToken(pageToken)
 	}
-	{
-		// // Dev
-		// listReq.PageSize(1)
-		// listReq.Fields(googleapi.Field("*"))
-	}
-	{
-		// Prod
+	if devMode {
+		listReq.PageSize(1)
+		listReq.Fields(googleapi.Field("*"))
+	} else {
 		listReq.PageSize(maxFilesPerPage)
 		listReq.Fields(googleapi.Field("nextPageToken"), googleapi.Field("files/id"), googleapi.Field("files/name"),
 			googleapi.Field("files/mimeType"), googleapi.Field("files/parents"))
@@ -74,6 +88,66 @@ func (c *Controller) getDriveListing(pageToken string) (files []*drive.File, nex
 	files = filesList.Files
 	nextPageToken = filesList.NextPageToken
 	// Done
+	return
+}
+
+func (c *Controller) getDriveChanges(nextPageToken string) (changes []*drive.Change, nextStartPage string, err error) {
+	c.logger.Debug("[DriveWatcher] getting a new page of changes...")
+	// Build Request
+	changesReq := c.driveClient.Changes.List(nextPageToken).Context(c.ctx)
+	changesReq.IncludeRemoved(true)
+	if c.rc.Drive.TeamDrive != "" {
+		changesReq.SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
+	}
+	if devMode {
+		changesReq.PageSize(1)
+		changesReq.Fields(googleapi.Field("*"))
+	} else {
+		changesReq.PageSize(maxChangesPerPage)
+		changesReq.Fields(googleapi.Field("nextPageToken"), googleapi.Field("newStartPageToken"),
+			googleapi.Field("changes"), googleapi.Field("changes/fileId"), googleapi.Field("changes/removed"),
+			googleapi.Field("changes/time"), googleapi.Field("changes/changeType"), googleapi.Field("changes/file"),
+			googleapi.Field("changes/file/name"), googleapi.Field("changes/file/mimeType"), googleapi.Field("changes/file/trashed"),
+			googleapi.Field("changes/file/parents"), googleapi.Field("changes/file/createdTime"))
+	}
+	// Execute Request
+	if err = c.limiter.Wait(c.ctx); err != nil {
+		err = fmt.Errorf("can not execute API request, waiting for the limiter failed: %w", err)
+		return
+	}
+	start := time.Now()
+	changeList, err := changesReq.Do()
+	if err != nil {
+		err = fmt.Errorf("failed to execute the API query for changes list: %w", err)
+		return
+	}
+	c.logger.Debugf("[DriveWatcher] changes page obtained in %v", time.Since(start))
+	// Extract changes from answer
+	changes = changeList.Changes
+	// Is there any pages left ?
+	if changeList.NextPageToken != "" {
+		c.logger.Debugf("[DriveWatcher] another page of changes is available at %s", changeList.NextPageToken)
+		var nextPagesChanges []*drive.Change
+		if nextPagesChanges, nextStartPage, err = c.getDriveChanges(changeList.NextPageToken); err != nil {
+			err = fmt.Errorf("failed to get change list next page: %w", err)
+			return
+		}
+		changes = append(changes, nextPagesChanges...)
+		return
+	}
+	// We are the last page of results, recover token for next run
+	if changeList.NewStartPageToken == "" {
+		err = errors.New("end of changelist should contain NewStartPageToken")
+		return
+	}
+	c.logger.Debugf("[DriveWatcher] no more changes pages, recovering the marker for next run: %s", changeList.NewStartPageToken)
+	nextStartPage = changeList.NewStartPageToken
+	// Done
+	if c.logger.IsDebugShown() {
+		for index, change := range changes {
+			c.logger.Debugf("[DriveWatcher] raw change #%d: %+v", index+1, *change)
+		}
+	}
 	return
 }
 

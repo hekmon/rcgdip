@@ -10,7 +10,7 @@ const (
 	stateRootFolderIDKey  = "rootFolderID"
 )
 
-func (c *Controller) validateRemoteDrive() (sameDrive bool, err error) {
+func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err error) {
 	c.logger.Info("[DriveWatcher] validating local state against remote drive...")
 	var (
 		remoteRootID    string
@@ -104,8 +104,12 @@ func (c *Controller) initState(reindex bool) (err error) {
 		return
 	}
 	if !found {
-		if err = c.fetchChangesStartPage(); err != nil {
+		if nextStartPage, err = c.getDriveChangesStartPage(); err != nil {
 			err = fmt.Errorf("failed to get the start page token from Drive API: %w", err)
+			return
+		}
+		if err = c.state.Set(stateNextStartPageKey, nextStartPage); err != nil {
+			err = fmt.Errorf("failed to save the startPageToken within our state: %w", err)
 			return
 		}
 	}

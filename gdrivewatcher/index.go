@@ -62,7 +62,7 @@ func (c *Controller) initialIndexBuild() (err error) {
 	return
 }
 
-func (c *Controller) fetchAndAddIfMissing(ids []string) (err error) {
+func (c *Controller) fetchAndAddToIndexIfMissing(ids []string) (err error) {
 	var (
 		found    bool
 		fileInfo *driveFileBasicInfo
@@ -95,7 +95,7 @@ func (c *Controller) fetchAndAddIfMissing(ids []string) (err error) {
 	}
 	if len(lookupList) > 0 {
 		// new files infos discovered, let's find their parents too
-		return c.fetchAndAddIfMissing(lookupList)
+		return c.fetchAndAddToIndexIfMissing(lookupList)
 	}
 	// Every files has been searched and have their info now, time to return for real
 	return

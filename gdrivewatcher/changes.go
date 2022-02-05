@@ -1,35 +1,11 @@
 package gdrivewatcher
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
 	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/googleapi"
 )
-
-const (
-	maxChangesPerPage = 1000
-)
-
-func (c *Controller) fetchChangesStartPage() (err error) {
-	// Get start page token
-	changesReq := c.driveClient.Changes.GetStartPageToken().Context(c.ctx)
-	if c.rc.Drive.TeamDrive != "" {
-		changesReq.SupportsAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
-	}
-	changesStart, err := changesReq.Do()
-	if err != nil {
-		return
-	}
-	// Save it
-	if err = c.state.Set(stateNextStartPageKey, changesStart.StartPageToken); err != nil {
-		err = fmt.Errorf("failed to save the startPageToken within our state: %w", err)
-		return
-	}
-	return
-}
 
 type fileChange struct {
 	Event   time.Time
@@ -62,9 +38,13 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 	}()
 	// Get changes
 	start := time.Now()
-	changes, err := c.fetchChanges(backupStartToken)
+	changes, nextStartPage, err := c.getDriveChanges(backupStartToken)
 	if err != nil {
 		err = fmt.Errorf("failed to get all changes recursively: %w", err)
+		return
+	}
+	if err = c.state.Set(stateNextStartPageKey, nextStartPage); err != nil {
+		err = fmt.Errorf("failed to save the nextStartPageToken within local state: %w", err)
 		return
 	}
 	c.logger.Debugf("[DriveWatcher] %d raw change(s) recovered in %v", len(changes), time.Since(start))
@@ -74,7 +54,7 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 	}
 	// Build the index with parents for further path computation
 	indexStart := time.Now()
-	if err = c.addFilesToIndex(changes); err != nil {
+	if err = c.addChangesFilesToIndex(changes); err != nil {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
@@ -106,74 +86,7 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 	return
 }
 
-func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change, err error) {
-	c.logger.Debug("[DriveWatcher] getting a new page of changes...")
-	// Build Request
-	changesReq := c.driveClient.Changes.List(nextPageToken).Context(c.ctx)
-	changesReq.IncludeRemoved(true)
-	if c.rc.Drive.TeamDrive != "" {
-		changesReq.SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
-	}
-	{
-		// // Dev
-		// changesReq.PageSize(1)
-		// changesReq.Fields(googleapi.Field("*"))
-	}
-	{
-		// Prod
-		changesReq.PageSize(maxChangesPerPage)
-		changesReq.Fields(googleapi.Field("nextPageToken"), googleapi.Field("newStartPageToken"),
-			googleapi.Field("changes"), googleapi.Field("changes/fileId"), googleapi.Field("changes/removed"),
-			googleapi.Field("changes/time"), googleapi.Field("changes/changeType"), googleapi.Field("changes/file"),
-			googleapi.Field("changes/file/name"), googleapi.Field("changes/file/mimeType"), googleapi.Field("changes/file/trashed"),
-			googleapi.Field("changes/file/parents"), googleapi.Field("changes/file/createdTime"))
-	}
-	// Execute Request
-	if err = c.limiter.Wait(c.ctx); err != nil {
-		err = fmt.Errorf("can not execute API request, waiting for the limiter failed: %w", err)
-		return
-	}
-	start := time.Now()
-	changeList, err := changesReq.Do()
-	if err != nil {
-		err = fmt.Errorf("failed to execute the API query for changes list: %w", err)
-		return
-	}
-	c.logger.Debugf("[DriveWatcher] changes page obtained in %v", time.Since(start))
-	// Extract changes from answer
-	changes = changeList.Changes
-	// Is there any pages left ?
-	if changeList.NextPageToken != "" {
-		c.logger.Debugf("[DriveWatcher] another page of changes is available at %s", changeList.NextPageToken)
-		var nextPagesChanges []*drive.Change
-		if nextPagesChanges, err = c.fetchChanges(changeList.NextPageToken); err != nil {
-			err = fmt.Errorf("failed to get change list next page: %w", err)
-			return
-		}
-		changes = append(changes, nextPagesChanges...)
-		return
-	}
-	// We are the last page of results, save token for next run
-	if changeList.NewStartPageToken == "" {
-		err = errors.New("end of changelist should contain NewStartPageToken")
-		return
-	}
-	c.logger.Debugf("[DriveWatcher] no more changes pages, recovering the marker for next run: %s", changeList.NewStartPageToken)
-	// save new start token for next run
-	if err = c.state.Set(stateNextStartPageKey, changeList.NewStartPageToken); err != nil {
-		err = fmt.Errorf("failed to save the nextStartPageToken within local state: %w", err)
-		return
-	}
-	// Done
-	if c.logger.IsDebugShown() {
-		for index, change := range changes {
-			c.logger.Debugf("[DriveWatcher] raw change #%d: %+v", index+1, *change)
-		}
-	}
-	return
-}
-
-func (c *Controller) addFilesToIndex(changes []*drive.Change) (err error) {
+func (c *Controller) addChangesFilesToIndex(changes []*drive.Change) (err error) {
 	c.logger.Debugf("[DriveWatcher] update the index using %d change(s)", len(changes))
 	// Build the file index starting by infos contained in the change list
 	lookup := make([]string, 0, len(changes))
@@ -218,7 +131,7 @@ func (c *Controller) addFilesToIndex(changes []*drive.Change) (err error) {
 		}
 	}
 	// Found out all missing parents infos
-	if err = c.fetchAndAddIfMissing(lookup); err != nil {
+	if err = c.fetchAndAddToIndexIfMissing(lookup); err != nil {
 		err = fmt.Errorf("failed to recover all parents files infos: %w", err)
 		return
 	}

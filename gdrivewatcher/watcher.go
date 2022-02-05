@@ -13,7 +13,7 @@ func (c *Controller) watcher(interval time.Duration) {
 		sameDrive bool
 		err       error
 	)
-	if sameDrive, err = c.validateRemoteDrive(); err != nil {
+	if sameDrive, err = c.validateStateAgainstRemoteDrive(); err != nil {
 		c.logger.Errorf("[DriveWatcher] failed to validate if remote drive has changed: %s", err)
 		if c.ctx.Err() == nil {
 			c.killSwitch()
