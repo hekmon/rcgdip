@@ -23,17 +23,13 @@ func (c *Controller) loadStats() {
 func (c *Controller) saveStats() {
 	c.logger.Debug("[Storage] saving stats...")
 	c.statsAccess.Lock()
-	c.logger.Debugf("[Storage] saving stats: max size key encoutered is %d and max size value encoutered is %d", c.maxSizeKey, c.maxSizeValue)
 	if err := c.statsRealm.Set(maxSizeKeyKey, c.maxSizeKey); err != nil {
 		c.logger.Errorf("[Storage] failed to save the %s stats value: %s", maxSizeKeyKey, err.Error())
-	} else {
-		c.logger.Debugf("[Storage] stat %s saved: %d", maxSizeKeyKey, c.maxSizeKey)
 	}
 	if err := c.statsRealm.Set(maxSizeValueKey, c.maxSizeValue); err != nil {
 		c.logger.Errorf("[Storage] failed to save the %s stats value: %s", maxSizeValueKey, err.Error())
-	} else {
-		c.logger.Debugf("[Storage] stat %s saved: %d", maxSizeValueKey, c.maxSizeValue)
 	}
+	c.logger.Debugf("[Storage] saved stats: max size key encoutered is %d and max size value encoutered is %d", c.maxSizeKey, c.maxSizeValue)
 	c.statsAccess.Unlock()
 }
 
