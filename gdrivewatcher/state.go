@@ -23,37 +23,12 @@ func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err erro
 	}
 	// If the remote drive does not validate, invalid our local state
 	defer func() {
-		if !sameDrive {
-			// Clear state and index
-			if err = c.state.Clear(); err != nil {
-				err = fmt.Errorf("failed to clean the state: %w", err)
-				return
+		if err == nil {
+			if sameDrive {
+				c.logger.Info("[DriveWatcher] local state seems valid")
+			} else {
+				err = c.resetState(remoteRootID, remoteRootInfos)
 			}
-			if err = c.index.Clear(); err != nil {
-				err = fmt.Errorf("failed to clean the index: %w", err)
-				return
-			}
-			// Store the root folder ID within the state
-			if err = c.state.Set(stateRootFolderIDKey, remoteRootID); err != nil {
-				err = fmt.Errorf("failed to save root folder fileID within the local state: %w", err)
-				return
-			}
-			// Insert the first index item: root folder
-			if err = c.index.Set(remoteRootID, remoteRootInfos); err != nil {
-				err = fmt.Errorf("failed to save root folder file infos within the local index: %w", err)
-				return
-			}
-			// Special case for team drives, the root folderID can have a different form
-			if c.rc.Drive.TeamDrive != "" && remoteRootID != c.rc.Drive.TeamDrive {
-				c.logger.Debugf("[DriveWatcher] retreived root folderID '%s' is different than supplied teamdrive ID '%s': cloning it within the index",
-					remoteRootID, c.rc.Drive.TeamDrive)
-				if err = c.index.Set(c.rc.Drive.TeamDrive, remoteRootInfos); err != nil {
-					err = fmt.Errorf("failed to clone root folder file infos as teamdrive within the local index: %w", err)
-					return
-				}
-			}
-		} else {
-			c.logger.Info("[DriveWatcher] local state seems valid")
 		}
 	}()
 	// First do we have a stored rootID ?
@@ -92,6 +67,38 @@ func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err erro
 	// All good
 	c.logger.Debugf("[DriveWatcher] the root folderID '%s' in our local state seems valid", storedRootID)
 	sameDrive = true
+	return
+}
+
+func (c *Controller) resetState(remoteRootID string, remoteRootInfos *driveFileBasicInfo) (err error) {
+	// Clear state and index
+	if err = c.state.Clear(); err != nil {
+		err = fmt.Errorf("failed to clean the state: %w", err)
+		return
+	}
+	if err = c.index.Clear(); err != nil {
+		err = fmt.Errorf("failed to clean the index: %w", err)
+		return
+	}
+	// Store the root folder ID within the state
+	if err = c.state.Set(stateRootFolderIDKey, remoteRootID); err != nil {
+		err = fmt.Errorf("failed to save root folder fileID within the local state: %w", err)
+		return
+	}
+	// Insert the first index item: root folder
+	if err = c.index.Set(remoteRootID, remoteRootInfos); err != nil {
+		err = fmt.Errorf("failed to save root folder file infos within the local index: %w", err)
+		return
+	}
+	// Special case for team drives, the root folderID can have a different form
+	if c.rc.Drive.TeamDrive != "" && remoteRootID != c.rc.Drive.TeamDrive {
+		c.logger.Debugf("[DriveWatcher] retreived root folderID '%s' is different than supplied teamdrive ID '%s': cloning it within the index",
+			remoteRootID, c.rc.Drive.TeamDrive)
+		if err = c.index.Set(c.rc.Drive.TeamDrive, remoteRootInfos); err != nil {
+			err = fmt.Errorf("failed to clone root folder file infos as teamdrive within the local index: %w", err)
+			return
+		}
+	}
 	return
 }
 
