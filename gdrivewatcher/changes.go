@@ -43,9 +43,12 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 		err = fmt.Errorf("failed to get all changes recursively: %w", err)
 		return
 	}
-	if err = c.state.Set(stateNextStartPageKey, nextStartPage); err != nil {
-		err = fmt.Errorf("failed to save the nextStartPageToken within local state: %w", err)
-		return
+	if nextStartPage != backupStartToken {
+		// if no changes, token stays the same
+		if err = c.state.Set(stateNextStartPageKey, nextStartPage); err != nil {
+			err = fmt.Errorf("failed to save the nextStartPageToken within local state: %w", err)
+			return
+		}
 	}
 	c.logger.Debugf("[DriveWatcher] %d raw change(s) recovered in %v", len(changes), time.Since(start))
 	if len(changes) == 0 {
