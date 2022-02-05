@@ -68,17 +68,22 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 		return
 	}
 	c.logger.Debugf("[DriveWatcher] %d raw change(s) recovered in %v", len(changes), time.Since(start))
+	if len(changes) == 0 {
+		c.logger.Info("[DriveWatcher] no changes detected")
+		return
+	}
 	// Build the index with parents for further path computation
 	indexStart := time.Now()
 	if err = c.addFilesToIndex(changes); err != nil {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	if c.logger.IsDebugShown() && len(changes) > 0 {
-		// NbKeys has a small performance hit, call it only if we need to
+	if c.logger.IsDebugShown() {
+		// NbKeys has a performance hit, call it only if we need to
 		c.logger.Debugf("[DriveWatcher] index updated in %v, currently containing %d nodes", time.Since(indexStart), c.index.NbKeys())
 	}
 	// Process each event
+	processStart := time.Now()
 	changedFiles = make([]fileChange, 0, len(changes))
 	var fc *fileChange
 	for _, change := range changes {
@@ -95,6 +100,7 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 	if len(changedFiles) != len(changes) {
 		c.logger.Debugf("[DriveWatcher] filtered out %d change(s) that was not a file change", len(changes)-len(changedFiles))
 	}
+	c.logger.Debugf("[DriveWatcher] %d raw change(s) processed in %v", len(changes), time.Since(processStart))
 	// Done
 	c.logger.Infof("[DriveWatcher] %d valid change(s) on %d recovered change(s) compiled in %v", len(changedFiles), len(changes), time.Since(start))
 	return
@@ -235,13 +241,13 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 		return
 	}
 	// Purge file from index at the end if deletion
-	if change.Removed {
+	if change.Removed || fileTrashed {
 		defer func() {
 			if deleteErr := c.index.Delete(change.FileId); err != nil {
 				c.logger.Errorf("[DriveWatcher] failed to delete fileID '%s' from local index after processing its removed change event: %s",
 					change.FileId, deleteErr)
 			} else {
-				c.logger.Debugf("[DriveWatcher] deletes fileID '%s' from local index after processing its removed change event",
+				c.logger.Debugf("[DriveWatcher] deleted fileID '%s' from local index after processing its removed/trashed change event",
 					change.FileId)
 			}
 		}()
@@ -257,6 +263,7 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 	for _, reversedPath := range reversedPaths {
 		// If custom root folder id, search it and rewrite paths with new root
 		if c.rc.Drive.RootFolderID != "" {
+			// TODO: cutAt yield new driveFilePath
 			if !reversedPath.CutAt(c.rc.Drive.RootFolderID) {
 				c.logger.Debugf("[DriveWatcher] path '%s' does not contain the custom root folder id, discarding it", reversedPath.Reverse().Path())
 				continue // root folder id not found in this path, skipping
@@ -276,7 +283,7 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 		err = fmt.Errorf("failed to convert change time for fileID %s, name '%s': %w", change.FileId, fileName, err)
 		return
 	}
-	// Save up the consolidated info for return collection
+	// Return the consolidated info for caller
 	fc = &fileChange{
 		Event:   changeTime,
 		Folder:  fileIsFolder,
@@ -305,7 +312,7 @@ func (c *Controller) compileFileInfosFor(change *drive.Change) (fileName string,
 	}
 	if !found {
 		if change.Removed {
-			c.logger.Warningf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor will be skipped",
+			c.logger.Debugf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor will be skipped",
 				change.FileId)
 			skip = true
 		} else {

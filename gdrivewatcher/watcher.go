@@ -27,7 +27,7 @@ func (c *Controller) watcher(interval time.Duration) {
 	// Start the watch
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	c.logger.Debug("[DriveWatcher] starting the watch")
+	c.logger.Infof("[DriveWatcher] will check for changes every %v", interval)
 	for {
 		select {
 		case <-ticker.C:

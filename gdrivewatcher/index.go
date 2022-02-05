@@ -89,6 +89,7 @@ func (c *Controller) fetchAndAddIfMissing(ids []string) (err error) {
 			err = fmt.Errorf("failed to save file infos for fileID '%s' within the local index: %w", fileID, err)
 			return
 		}
+		c.logger.Debugf("[DriveWatcher] fetched missing infos for fileID '%s'", fileID)
 		// Prepare its parents for search if unknown
 		lookupList = append(lookupList, fileInfo.Parents...)
 	}

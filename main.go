@@ -54,7 +54,7 @@ func main() {
 	var err error
 	logger.Info("[Main] initializing the storage backend...")
 	if db, err = storage.New(storage.Config{
-		Instance: "test",
+		Instance: devinstance,
 		Logger:   logger,
 	}); err != nil {
 		logger.Fatalf(1, "[Main] failed to initialize storage: %s", err.Error())
