@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	wardenFreq          = 10 * time.Minute
+	wardenFreq          = 30 * time.Minute
 	minPercentToReclain = 0.1
 	minSizeToReclaim    = cunits.Bits(10) * cunits.MiB
 )
