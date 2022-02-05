@@ -54,8 +54,8 @@ func (c *Controller) wardenPass() {
 					reclaimableSize, percentReclaimable*100)
 			}
 		} else {
-			c.logger.Debugf("[Storage] reclaimable space is too low to performe a merge: %.02f%% representing %s",
-				percentReclaimable*100, reclaimableSize)
+			c.logger.Debugf("[Storage] reclaimable space is too low to performe a merge: %s representing %.02f%%",
+				reclaimableSize, percentReclaimable*100)
 		}
 	}
 }
