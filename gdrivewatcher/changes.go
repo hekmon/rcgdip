@@ -198,7 +198,7 @@ func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err err
 		// Add its parents for search
 		var found bool
 		for _, parentID := range change.File.Parents {
-			// add parent to lookup if not already in changes
+			// add parent to lookup if not already present in changes
 			found = false
 			for _, changeCheck := range changes {
 				if changeCheck.FileId == parentID {
@@ -212,7 +212,7 @@ func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err err
 		}
 	}
 	// Found out all missing parents infos
-	if err = c.recursivelyDiscoverFiles(lookup); err != nil {
+	if err = c.fetchIfMissing(lookup); err != nil {
 		err = fmt.Errorf("failed to recover all parents files infos: %w", err)
 		return
 	}

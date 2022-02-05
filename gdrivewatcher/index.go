@@ -62,15 +62,26 @@ func (c *Controller) initialIndexBuild() (err error) {
 	return
 }
 
-// TODO: check if not already in index before looking them up
-func (c *Controller) recursivelyDiscoverFiles(ids []string) (err error) {
-	var fileInfo *driveFileBasicInfo
+func (c *Controller) fetchIfMissing(ids []string) (err error) {
+	var (
+		found    bool
+		fileInfo *driveFileBasicInfo
+	)
 	lookupList := make([]string, 0, len(ids))
 	// Search all provided IDs
 	for _, fileID := range ids {
+		// Check if we do not already have the file within our index
+		if found, err = c.index.Get(fileID, &fileInfo); err != nil {
+			err = fmt.Errorf("failed to get file info for fileID '%s' within the local index: %w", fileID, err)
+			return
+		}
+		if found {
+			c.logger.Debugf("[DriveWatcher] fileID '%s' is already known (present in the index), skipping fetch", fileID)
+			continue
+		}
 		// Get file infos
 		if fileInfo, err = c.getDriveFileInfo(fileID); err != nil {
-			err = fmt.Errorf("failed to get file info for fileID %s: %w", fileID, err)
+			err = fmt.Errorf("failed to get file info for fileID '%s' from drive: %w", fileID, err)
 			return
 		}
 		// Save them
@@ -91,7 +102,7 @@ func (c *Controller) recursivelyDiscoverFiles(ids []string) (err error) {
 	}
 	if len(lookupList) > 0 {
 		// new files infos discovered, let's find their parents too
-		return c.recursivelyDiscoverFiles(lookupList)
+		return c.fetchIfMissing(lookupList)
 	}
 	// Every files has been searched and have their info now, time to return for real
 	return
