@@ -70,12 +70,12 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 	c.logger.Debugf("[DriveWatcher] %d raw change(s) recovered in %v", len(changes), time.Since(start))
 	// Build the index with parents for further path computation
 	indexStart := time.Now()
-	if err = c.incorporateChangesToIndex(changes); err != nil {
+	if err = c.addFilesToIndex(changes); err != nil {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
 	if c.logger.IsDebugShown() && len(changes) > 0 {
-		// NbKeys has a performance hit
+		// NbKeys has a small performance hit, call it only if we need to
 		c.logger.Debugf("[DriveWatcher] index updated in %v, currently containing %d nodes", time.Since(indexStart), c.index.NbKeys())
 	}
 	// Process each event
@@ -167,7 +167,7 @@ func (c *Controller) fetchChanges(nextPageToken string) (changes []*drive.Change
 	return
 }
 
-func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err error) {
+func (c *Controller) addFilesToIndex(changes []*drive.Change) (err error) {
 	c.logger.Debugf("[DriveWatcher] update the index using %d change(s)", len(changes))
 	// Build the file index starting by infos contained in the change list
 	lookup := make([]string, 0, len(changes))
@@ -176,7 +176,7 @@ func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err err
 		if change.ChangeType != "file" {
 			continue
 		}
-		// If file deleted, we won't have any information. To make it valid, we must have it within our index
+		// If file deleted, let's keep it in the index to rebuild its path, it will be deleted at the end of the process
 		if change.Removed {
 			continue
 		}
@@ -212,7 +212,7 @@ func (c *Controller) incorporateChangesToIndex(changes []*drive.Change) (err err
 		}
 	}
 	// Found out all missing parents infos
-	if err = c.fetchIfMissing(lookup); err != nil {
+	if err = c.fetchAndAddIfMissing(lookup); err != nil {
 		err = fmt.Errorf("failed to recover all parents files infos: %w", err)
 		return
 	}

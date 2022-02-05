@@ -62,7 +62,7 @@ func (c *Controller) initialIndexBuild() (err error) {
 	return
 }
 
-func (c *Controller) fetchIfMissing(ids []string) (err error) {
+func (c *Controller) fetchAndAddIfMissing(ids []string) (err error) {
 	var (
 		found    bool
 		fileInfo *driveFileBasicInfo
@@ -71,11 +71,7 @@ func (c *Controller) fetchIfMissing(ids []string) (err error) {
 	// Search all provided IDs
 	for _, fileID := range ids {
 		// Check if we do not already have the file within our index
-		if found, err = c.index.Get(fileID, &fileInfo); err != nil {
-			err = fmt.Errorf("failed to get file info for fileID '%s' within the local index: %w", fileID, err)
-			return
-		}
-		if found {
+		if found = c.index.Has(fileID); found {
 			c.logger.Debugf("[DriveWatcher] fileID '%s' is already known (present in the index), skipping fetch", fileID)
 			continue
 		}
@@ -94,15 +90,11 @@ func (c *Controller) fetchIfMissing(ids []string) (err error) {
 			return
 		}
 		// Prepare its parents for search if unknown
-		for _, parent := range fileInfo.Parents {
-			if !c.index.Has(parent) {
-				lookupList = append(lookupList, parent)
-			}
-		}
+		lookupList = append(lookupList, fileInfo.Parents...)
 	}
 	if len(lookupList) > 0 {
 		// new files infos discovered, let's find their parents too
-		return c.fetchIfMissing(lookupList)
+		return c.fetchAndAddIfMissing(lookupList)
 	}
 	// Every files has been searched and have their info now, time to return for real
 	return
