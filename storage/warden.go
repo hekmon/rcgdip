@@ -7,9 +7,9 @@ import (
 )
 
 const (
-	wardenFreq          = 1 * time.Minute
+	wardenFreq          = 10 * time.Minute
 	minPercentToReclain = 0.1
-	minSizeToReclaim    = cunits.Bits(100) * cunits.MiB
+	minSizeToReclaim    = cunits.Bits(10) * cunits.MiB
 )
 
 func (c *Controller) warden() {

@@ -9,6 +9,12 @@ import (
 	"github.com/hekmon/hllogger"
 )
 
+const (
+	maxValueSize    = 4096
+	maxSizeKeyKey   = "maxSizeKey"
+	maxSizeValueKey = "maxSizeValue"
+)
+
 type Config struct {
 	Instance string
 	Logger   *hllogger.HlLogger
@@ -25,6 +31,7 @@ type Controller struct {
 	statsAccess  sync.Mutex
 	maxSizeKey   int
 	maxSizeValue int
+	statsRealm   *RealmController
 	// Workers
 	ctx       context.Context
 	ctxCancel func()
@@ -42,15 +49,18 @@ func New(conf Config) (c *Controller, err error) {
 		backupDBPath: fmt.Sprintf("rcgdip_storage%s_backup", conf.Instance),
 	}
 	// Open up the db
-	if c.db, err = bitcask.Open(c.mainDBPath); err != nil {
+	if c.db, err = bitcask.Open(c.mainDBPath, bitcask.WithMaxValueSize(maxValueSize)); err != nil {
 		return
 	}
-	c.logger.Info("[Storage] db successfully open")
+	c.logger.Debug("[Storage] db successfully open")
 	// Create a backup
 	if err = c.db.Backup(c.backupDBPath); err != nil {
 		return
 	}
 	c.logger.Debug("[Storage] db backup successfull")
+	// Restore stats
+	c.statsRealm = c.NewScoppedAccess("stats")
+	c.loadStats()
 	// Start the warden
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
 	c.workers.Add(1)
@@ -59,41 +69,19 @@ func New(conf Config) (c *Controller, err error) {
 }
 
 func (c *Controller) Stop() {
+	// Send stop signal
 	c.logger.Debug("[Storage] stop signal received, stopping workers...")
 	c.ctxCancel()
+	// Save stats while workers are waiting
+	c.saveStats()
+	// Wait for workersr to be fully stopped
 	c.workers.Wait()
+	// Close the db at the end
 	c.logger.Debug("[Storage] workers stopped, closing the db...")
 	if err := c.db.Close(); err != nil {
 		c.logger.Errorf("[Storage] can not cleanly close the db, it might get corrupt, please consider using the backup db before restarting: %s",
 			err.Error())
-	} else {
-		c.statsAccess.Lock()
-		c.logger.Debugf("[Storage] stats: max size key encoutered is %d and max size value encoutered is %d", c.maxSizeKey, c.maxSizeValue)
-		c.statsAccess.Unlock()
-		c.logger.Info("[Storage] database closed")
+		return
 	}
-}
-
-func (c *Controller) updateKeysStat(keyLength int) {
-	c.workers.Add(1)
-	go func() {
-		c.statsAccess.Lock()
-		if keyLength > c.maxSizeKey {
-			c.maxSizeKey = keyLength
-		}
-		c.statsAccess.Unlock()
-		c.workers.Done()
-	}()
-}
-
-func (c *Controller) updateValuesStat(valueLength int) {
-	c.workers.Add(1)
-	go func() {
-		c.statsAccess.Lock()
-		if valueLength > c.maxSizeValue {
-			c.maxSizeValue = valueLength
-		}
-		c.statsAccess.Unlock()
-		c.workers.Done()
-	}()
+	c.logger.Info("[Storage] database closed")
 }
