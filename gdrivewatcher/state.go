@@ -1,7 +1,6 @@
 package gdrivewatcher
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 )
@@ -11,10 +10,9 @@ const (
 	stateRootFolderIDKey  = "rootFolderID"
 )
 
-func (c *Controller) validateStateAgainstRemoteDrive() (err error) {
+func (c *Controller) validateRemoteDrive() (sameDrive bool, err error) {
 	c.logger.Info("[DriveWatcher] validating local state against remote drive...")
 	var (
-		valid           bool
 		remoteRootID    string
 		remoteRootInfos *driveFileBasicInfo
 	)
@@ -25,7 +23,7 @@ func (c *Controller) validateStateAgainstRemoteDrive() (err error) {
 	}
 	// If the remote drive does not validate, invalid our local state
 	defer func() {
-		if !valid {
+		if !sameDrive {
 			// Clear state and index
 			if err = c.state.Clear(); err != nil {
 				err = fmt.Errorf("failed to clean the state: %w", err)
@@ -35,15 +33,24 @@ func (c *Controller) validateStateAgainstRemoteDrive() (err error) {
 				err = fmt.Errorf("failed to clean the index: %w", err)
 				return
 			}
+			// Store the root folder ID within the state
+			if err = c.state.Set(stateRootFolderIDKey, remoteRootID); err != nil {
+				err = fmt.Errorf("failed to save root folder fileID within the local state: %w", err)
+				return
+			}
 			// Insert the first index item: root folder
 			if err = c.index.Set(remoteRootID, remoteRootInfos); err != nil {
 				err = fmt.Errorf("failed to save root folder file infos within the local index: %w", err)
 				return
 			}
-			// Store the root folder ID within the state
-			if err = c.state.Set(stateRootFolderIDKey, remoteRootID); err != nil {
-				err = fmt.Errorf("failed to save root folder fileID within the local state: %w", err)
-				return
+			// Special case for team drives, the root folderID can have a different form
+			if c.rc.Drive.TeamDrive != "" && remoteRootID != c.rc.Drive.TeamDrive {
+				c.logger.Debugf("[DriveWatcher] retreived root folderID '%s' is different than supplied teamdrive ID '%s': cloning it within the index",
+					remoteRootID, c.rc.Drive.TeamDrive)
+				if err = c.index.Set(c.rc.Drive.TeamDrive, remoteRootInfos); err != nil {
+					err = fmt.Errorf("failed to clone root folder file infos as teamdrive within the local index: %w", err)
+					return
+				}
 			}
 		} else {
 			c.logger.Info("[DriveWatcher] local state seems valid")
@@ -84,11 +91,11 @@ func (c *Controller) validateStateAgainstRemoteDrive() (err error) {
 	}
 	// All good
 	c.logger.Debugf("[DriveWatcher] the root folderID '%s' in our local state seems valid", storedRootID)
-	valid = true
+	sameDrive = true
 	return
 }
 
-func (c *Controller) populate() (err error) {
+func (c *Controller) initState(reindex bool) (err error) {
 	var found bool
 	// StartNextPage
 	var nextStartPage string
@@ -97,23 +104,19 @@ func (c *Controller) populate() (err error) {
 		return
 	}
 	if !found {
-		if err = c.getChangesStartPage(); err != nil {
+		if err = c.fetchChangesStartPage(); err != nil {
 			err = fmt.Errorf("failed to get the start page token from Drive API: %w", err)
 			return
 		}
 	}
 	// Index
-	nbKeys := c.index.NbKeys()
-	switch nbKeys {
-	case 0:
-		return errors.New("local index contains 0 keys: initialization must has gone wrong as at least 1 key (root folder) should be present")
-	case 1:
+	if reindex {
 		if err = c.initialIndexBuild(); err != nil {
 			err = fmt.Errorf("failed to index the drive: %w", err)
 			return
 		}
-	default:
-		c.logger.Debugf("[DriveWatcher] local index contains %d nodes", nbKeys)
+	} else {
+		c.logger.Debugf("[DriveWatcher] local index contains %d nodes", c.index.NbKeys())
 	}
 	return
 }

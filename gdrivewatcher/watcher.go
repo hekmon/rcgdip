@@ -9,15 +9,19 @@ func (c *Controller) watcher(interval time.Duration) {
 	// Prepare
 	defer c.workers.Done()
 	// Has the rclone backend changed ?
-	if err := c.validateStateAgainstRemoteDrive(); err != nil {
-		c.logger.Errorf("[DriveWatcher] failed to validate local state: %s", err)
+	var (
+		sameDrive bool
+		err       error
+	)
+	if sameDrive, err = c.validateRemoteDrive(); err != nil {
+		c.logger.Errorf("[DriveWatcher] failed to validate if remote drive has changed: %s", err)
 		if c.ctx.Err() == nil {
 			c.killSwitch()
 		}
 		return
 	}
 	// Fresh start ? (or reset)
-	if err := c.populate(); err != nil {
+	if err := c.initState(!sameDrive); err != nil {
 		c.logger.Errorf("[DriveWatcher] failed to initialize local state: %s", err)
 		if c.ctx.Err() == nil {
 			c.killSwitch()
@@ -44,7 +48,7 @@ func (c *Controller) workerPass() {
 	// Compute the paths containing changes
 	changesFiles, err := c.getFilesChanges()
 	if err != nil {
-		c.logger.Errorf("failed to retreived changed files: %w", err)
+		c.logger.Errorf("failed to retreived changed files: %s", err)
 		return
 	}
 	fmt.Println("---- CHANGED FILES ----")

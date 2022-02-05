@@ -47,7 +47,7 @@ func (c *Controller) generateReversePaths(fileID string) (buildedPaths []driveFi
 		return
 	}
 	if !found {
-		err = fmt.Errorf("fileID '%s' not found", fileID)
+		err = fmt.Errorf("fileID '%s' not found in the local index", fileID)
 		return
 	}
 	// Stop if no parent, we have reached root folder

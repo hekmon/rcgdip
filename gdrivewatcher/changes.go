@@ -13,7 +13,7 @@ const (
 	maxChangesPerPage = 1000
 )
 
-func (c *Controller) getChangesStartPage() (err error) {
+func (c *Controller) fetchChangesStartPage() (err error) {
 	// Get start page token
 	changesReq := c.driveClient.Changes.GetStartPageToken().Context(c.ctx)
 	if c.rc.Drive.TeamDrive != "" {
