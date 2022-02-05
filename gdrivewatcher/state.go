@@ -126,7 +126,8 @@ func (c *Controller) initState(reindex bool) (err error) {
 			err = fmt.Errorf("failed to index the drive: %w", err)
 			return
 		}
-	} else {
+	} else if c.logger.IsDebugShown() {
+		// Nb Keys has a performance hit only call it if needed
 		c.logger.Debugf("[DriveWatcher] local index contains %d nodes", c.index.NbKeys())
 	}
 	return
