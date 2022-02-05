@@ -37,7 +37,7 @@ func (c *Controller) watcher(interval time.Duration) {
 		case <-ticker.C:
 			c.workerPass()
 		case <-c.ctx.Done():
-			c.logger.Debug("[DriveWatcher] stopping worker as main context has been cancelled")
+			c.logger.Debug("[DriveWatcher] stopping watcher as main context has been cancelled")
 			return
 		}
 	}
