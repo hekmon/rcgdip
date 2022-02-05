@@ -10,12 +10,14 @@ import (
 )
 
 type RealmController struct {
+	name   string
 	prefix []byte
 	main   *Controller
 }
 
 func (c *Controller) NewScoppedAccess(realm string) *RealmController {
 	return &RealmController{
+		name:   realm,
 		prefix: []byte(realm + "_"),
 		main:   c,
 	}
@@ -35,12 +37,18 @@ func (sb *RealmController) Clear() (err error) {
 }
 
 func (sb *RealmController) Delete(key string) (err error) {
+	rawKey := sb.fqdnKey(key)
+	sb.main.logger.Debugf("[Storage] %s realm: received a delete request for '%s', transforming the key into '%s'",
+		sb.name, key, string(rawKey))
 	return sb.main.db.Delete(sb.fqdnKey(key))
 }
 
 func (sb *RealmController) Get(key string, unmarshallAsJSON interface{}) (found bool, err error) {
+	rawKey := sb.fqdnKey(key)
+	sb.main.logger.Debugf("[Storage] %s realm: received a get request for '%s', transforming the key into '%s'",
+		sb.name, key, string(rawKey))
 	// Get raw value
-	rawValue, err := sb.main.db.Get(sb.fqdnKey(key))
+	rawValue, err := sb.main.db.Get(rawKey)
 	if err != nil {
 		if errors.Is(err, bitcask.ErrKeyNotFound) {
 			err = nil
@@ -57,7 +65,10 @@ func (sb *RealmController) Get(key string, unmarshallAsJSON interface{}) (found 
 }
 
 func (sb *RealmController) Has(key string) (exists bool) {
-	return sb.main.db.Has(sb.fqdnKey(key))
+	rawKey := sb.fqdnKey(key)
+	sb.main.logger.Debugf("[Storage] %s realm: received a has request for '%s', transforming the key into '%s'",
+		sb.name, key, string(rawKey))
+	return sb.main.db.Has(rawKey)
 
 }
 
@@ -80,18 +91,20 @@ func (sb *RealmController) NbKeys() (nbKeys int) {
 }
 
 func (sb *RealmController) Set(key string, marshall2JSON interface{}) (err error) {
+	rawKey := sb.fqdnKey(key)
+	sb.main.logger.Debugf("[Storage] %s realm: received a set request for '%s', transforming the key into '%s'",
+		sb.name, key, string(rawKey))
 	// Marshall raw value
 	rawValue, err := json.Marshal(marshall2JSON)
 	if err != nil {
 		return
 	}
 	// Set raw value
-	absoluteKey := sb.fqdnKey(key)
-	if err = sb.main.db.Put(sb.fqdnKey(key), rawValue); err != nil {
+	if err = sb.main.db.Put(rawKey, rawValue); err != nil {
 		return
 	}
 	// All good, update stats
-	sb.main.updateKeysStat(len(absoluteKey))
+	sb.main.updateKeysStat(len(rawKey))
 	sb.main.updateValuesStat(len(rawValue))
 	return
 }

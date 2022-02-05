@@ -8,8 +8,6 @@ import (
 func (c *Controller) watcher(interval time.Duration) {
 	// Prepare
 	defer c.workers.Done()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
 	// Has the rclone backend changed ?
 	if err := c.validateStateAgainstRemoteDrive(); err != nil {
 		c.logger.Errorf("[DriveWatcher] failed to validate local state: %s", err)
@@ -27,6 +25,9 @@ func (c *Controller) watcher(interval time.Duration) {
 		return
 	}
 	// Start the watch
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	c.logger.Debug("[DriveWatcher] starting the watch")
 	for {
 		select {
 		case <-ticker.C:

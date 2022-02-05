@@ -74,7 +74,7 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 		err = fmt.Errorf("failed to build up the parent index for the %d changes retreived: %w", len(changes), err)
 		return
 	}
-	if c.logger.IsDebugShown() {
+	if c.logger.IsDebugShown() && len(changes) > 0 {
 		// NbKeys has a performance hit
 		c.logger.Debugf("[DriveWatcher] index updated in %v, currently containing %d nodes", time.Since(indexStart), c.index.NbKeys())
 	}
