@@ -45,6 +45,8 @@ func (c *Controller) validateStateAgainstRemoteDrive() (err error) {
 				err = fmt.Errorf("failed to save root folder fileID within the local state: %w", err)
 				return
 			}
+		} else {
+			c.logger.Info("[DriveWatcher] local state seems valid")
 		}
 	}()
 	// First do we have a stored rootID ?

@@ -59,6 +59,7 @@ func main() {
 	}); err != nil {
 		logger.Fatalf(1, "[Main] failed to initialize storage: %s", err.Error())
 	}
+	logger.Info("[Main] storage backend ready")
 
 	// Initialize GDrive controller
 	logger.Info("[Main] initializing the Google Drive watcher...")

@@ -305,7 +305,7 @@ func (c *Controller) compileFileInfosFor(change *drive.Change) (fileName string,
 	}
 	if !found {
 		if change.Removed {
-			c.logger.Warningf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor it will be skipped",
+			c.logger.Warningf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor will be skipped",
 				change.FileId)
 			skip = true
 		} else {
