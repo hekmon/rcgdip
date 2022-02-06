@@ -54,7 +54,10 @@ func (c *Controller) workerPass() {
 		return
 	}
 	// Walk thru results to log and decrypt if needed
-	var deletedSuffix string
+	var (
+		fileType      string
+		deletedSuffix string
+	)
 	for changeIndex, change := range changesFiles {
 		for pathIndex, path := range change.Paths {
 			// Handle encryption if needed
@@ -70,13 +73,18 @@ func (c *Controller) workerPass() {
 				change.Paths[pathIndex] = path
 			}
 			// Print the changed files
-			if !change.Folder {
+			if c.logger.IsInfoShown() {
+				if change.Folder {
+					fileType = "directory"
+				} else {
+					fileType = "file"
+				}
 				if change.Deleted {
 					deletedSuffix = " (removed)"
 				} else {
 					deletedSuffix = ""
 				}
-				c.logger.Infof("[Drive] file change detected: %s%s", path, deletedSuffix)
+				c.logger.Infof("[Drive] %s change detected: %s%s", fileType, path, deletedSuffix)
 			}
 		}
 		// Save the change with decrypted paths if needed
@@ -88,5 +96,4 @@ func (c *Controller) workerPass() {
 	c.logger.Debug("[Drive] sending change(s)...")
 	c.output <- changesFiles
 	c.logger.Debugf("[Drive] sent %d change(s)", len(changesFiles))
-
 }
