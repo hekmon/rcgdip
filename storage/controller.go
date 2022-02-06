@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	maxKeySize      = 128
 	maxValueSize    = 4096
 	maxSizeKeyKey   = "maxSizeKey"
 	maxSizeValueKey = "maxSizeValue"
@@ -49,7 +50,8 @@ func New(conf Config) (c *Controller, err error) {
 		backupDBPath: fmt.Sprintf("rcgdip_storage%s_backup", conf.Instance),
 	}
 	// Open up the db
-	if c.db, err = bitcask.Open(c.mainDBPath, bitcask.WithMaxValueSize(maxValueSize)); err != nil {
+	if c.db, err = bitcask.Open(c.mainDBPath,
+		bitcask.WithMaxValueSize(maxValueSize), bitcask.WithMaxKeySize(maxKeySize)); err != nil {
 		return
 	}
 	c.logger.Debug("[Storage] db successfully open")
@@ -74,7 +76,7 @@ func (c *Controller) Stop() {
 	c.ctxCancel()
 	// Save stats while workers are waiting
 	c.saveStats()
-	// Wait for workersr to be fully stopped
+	// Wait for workers to be fully stopped
 	c.workers.Wait()
 	// Close the db at the end
 	c.logger.Debug("[Storage] workers stopped, closing the db...")
