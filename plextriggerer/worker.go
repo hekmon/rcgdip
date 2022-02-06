@@ -26,6 +26,11 @@ func (c *Controller) triggerWorker(input <-chan []drivechange.File) {
 func (c *Controller) workerPass(changes []drivechange.File) {
 	c.logger.Debugf("[Plex] received a batch of %d change(s)", len(changes))
 	// Build uniq fully qualified folder paths to scan
+	scanList := c.extractBasePathsToScan(changes)
+	c.logger.Infof("[Plex] scheduling scan for the following paths: %s", strings.Join(scanList, ", "))
+}
+
+func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanList []string) {
 	var nbPaths int
 	for _, change := range changes {
 		nbPaths += len(change.Paths)
@@ -41,13 +46,21 @@ func (c *Controller) workerPass(changes []drivechange.File) {
 					paths[parent] = struct{}{}
 					c.logger.Debugf("[Plex] folder '%s' deleted, adding its parent to scan list: %s", changePath, parent)
 				} else {
-					c.logger.Debugf("[Plex] skipping folder change: %s", changePath)
+					c.logger.Debugf("[Plex] skipping folder change not being deletion: %s", changePath)
 				}
 			} else {
 				// add parent
 				parent := path.Clean(c.mountPoint + path.Dir(changePath))
 				paths[parent] = struct{}{}
-				c.logger.Debugf("[Plex] file '%s' modified, adding its parent to scan list: %s", changePath, parent)
+				if c.logger.IsDebugShown() {
+					var action string
+					if change.Deleted {
+						action = "deleted"
+					} else {
+						action = "modified"
+					}
+					c.logger.Debugf("[Plex] file '%s' %s, adding its parent to scan list: %s", changePath, action, parent)
+				}
 			}
 		}
 	}
@@ -66,11 +79,11 @@ func (c *Controller) workerPass(changes []drivechange.File) {
 		}
 	}
 	// Final list of paths
-	scanList := make([]string, len(paths))
+	scanList = make([]string, len(paths))
 	index := 0
 	for path := range paths {
 		scanList[index] = path
 		index++
 	}
-	c.logger.Infof("[Plex] scheduling scan for the following paths: %s", strings.Join(scanList, ", "))
+	return
 }
