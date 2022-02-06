@@ -95,6 +95,8 @@ func main() {
 		Input:        changesChan,
 		PollInterval: devpollinterval,
 		MountPoint:   devmountpoint,
+		PlexURL:      plexURL,
+		PlexToken:    plexToken,
 		Logger:       logger,
 	}); err != nil {
 		logger.Errorf("[Main] failed to initialize the Plex Triggerer: %s", err.Error())

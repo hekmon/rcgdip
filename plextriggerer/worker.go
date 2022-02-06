@@ -1,6 +1,7 @@
 package plextriggerer
 
 import (
+	"fmt"
 	"path"
 	"strings"
 
@@ -28,6 +29,13 @@ func (c *Controller) workerPass(changes []drivechange.File) {
 	// Build uniq fully qualified folder paths to scan
 	scanList := c.extractBasePathsToScan(changes)
 	c.logger.Infof("[Plex] scheduling scan for the following paths: %s", strings.Join(scanList, ", "))
+	// Get plex libs
+	libraries, err := c.plex.GetLibraries()
+	if err != nil {
+		c.logger.Errorf("[Plex] failed to get libraries: %s", err)
+		return
+	}
+	fmt.Printf("%+v\n", libraries)
 }
 
 func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanList []string) {
