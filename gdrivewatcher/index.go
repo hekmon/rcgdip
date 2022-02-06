@@ -14,7 +14,7 @@ type driveFileBasicInfo struct {
 }
 
 func (c *Controller) initialIndexBuild() (err error) {
-	c.logger.Infof("[DriveWatcher] building the initial index...")
+	c.logger.Infof("[Drive] building the initial index...")
 	start := time.Now()
 	// Get all the things, ahem files
 	var (
@@ -49,7 +49,7 @@ func (c *Controller) initialIndexBuild() (err error) {
 		}
 		// Put some stats out every minute as indexing can be quite long
 		if time.Since(lastStatsUpdate) >= time.Minute {
-			c.logger.Infof("[DriveWatcher] index building: so far %d list pages(s) has been recovered for a total of %d files",
+			c.logger.Infof("[Drive] index building: so far %d list pages(s) has been recovered for a total of %d files",
 				pagesFetched, nbFilesRecovered)
 			lastStatsUpdate = time.Now()
 		}
@@ -57,7 +57,7 @@ func (c *Controller) initialIndexBuild() (err error) {
 	// Done
 	if c.logger.IsInfoShown() {
 		// c.index.NbKeys() is filtered so a bit expensive
-		c.logger.Infof("[DriveWatcher] index builded with %d nodes in %v", c.index.NbKeys(), time.Since(start))
+		c.logger.Infof("[Drive] index builded with %d nodes in %v", c.index.NbKeys(), time.Since(start))
 	}
 	return
 }
@@ -72,7 +72,7 @@ func (c *Controller) fetchAndAddToIndexIfMissing(ids []string) (err error) {
 	for _, fileID := range ids {
 		// Check if we do not already have the file within our index
 		if found = c.index.Has(fileID); found {
-			c.logger.Debugf("[DriveWatcher] fileID '%s' is already known (present in the index), skipping fetch", fileID)
+			c.logger.Debugf("[Drive] fileID '%s' is already known (present in the index), skipping fetch", fileID)
 			continue
 		}
 		// Get file infos
@@ -89,7 +89,7 @@ func (c *Controller) fetchAndAddToIndexIfMissing(ids []string) (err error) {
 			err = fmt.Errorf("failed to save file infos for fileID '%s' within the local index: %w", fileID, err)
 			return
 		}
-		c.logger.Debugf("[DriveWatcher] fetched missing infos for fileID '%s'", fileID)
+		c.logger.Debugf("[Drive] fetched missing infos for fileID '%s'", fileID)
 		// Prepare its parents for search if unknown
 		lookupList = append(lookupList, fileInfo.Parents...)
 	}

@@ -11,7 +11,7 @@ const (
 )
 
 func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err error) {
-	c.logger.Info("[DriveWatcher] validating local state against remote drive...")
+	c.logger.Info("[Drive] validating local state against remote drive...")
 	var (
 		remoteRootID    string
 		remoteRootInfos *driveFileBasicInfo
@@ -25,7 +25,7 @@ func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err erro
 	defer func() {
 		if err == nil {
 			if sameDrive {
-				c.logger.Info("[DriveWatcher] local state seems valid")
+				c.logger.Info("[Drive] local state seems valid")
 			} else {
 				err = c.resetState(remoteRootID, remoteRootInfos)
 			}
@@ -41,12 +41,12 @@ func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err erro
 		return
 	}
 	if !found {
-		c.logger.Info("[DriveWatcher] no stored root folderID found, starting a new state")
+		c.logger.Info("[Drive] no stored root folderID found, starting a new state")
 		return
 	}
 	// Check
 	if storedRootID != remoteRootID {
-		c.logger.Warningf("[DriveWatcher] rootID has changed (%s -> %s), invalidating state", storedRootID, remoteRootID)
+		c.logger.Warningf("[Drive] rootID has changed (%s -> %s), invalidating state", storedRootID, remoteRootID)
 		return
 	}
 	// Validate index based on root file info
@@ -56,16 +56,16 @@ func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err erro
 		return
 	}
 	if !found {
-		c.logger.Warning("[DriveWatcher] we have a stored rootFolderID but it is not present in our index, invalidating state")
+		c.logger.Warning("[Drive] we have a stored rootFolderID but it is not present in our index, invalidating state")
 		return
 	}
 	if !reflect.DeepEqual(storedRootInfo, *remoteRootInfos) {
-		c.logger.Warningf("[DriveWatcher] our cached root property is not the same as remote, invalidating state: %+v -> %+v",
+		c.logger.Warningf("[Drive] our cached root property is not the same as remote, invalidating state: %+v -> %+v",
 			storedRootInfo, *remoteRootInfos)
 		return
 	}
 	// All good
-	c.logger.Debugf("[DriveWatcher] the root folderID '%s' in our local state seems valid", storedRootID)
+	c.logger.Debugf("[Drive] the root folderID '%s' in our local state seems valid", storedRootID)
 	sameDrive = true
 	return
 }
@@ -92,7 +92,7 @@ func (c *Controller) resetState(remoteRootID string, remoteRootInfos *driveFileB
 	}
 	// Special case for team drives, the root folderID can have a different form
 	if c.rc.Drive.TeamDrive != "" && remoteRootID != c.rc.Drive.TeamDrive {
-		c.logger.Debugf("[DriveWatcher] retreived root folderID '%s' is different than supplied teamdrive ID '%s': cloning it within the index",
+		c.logger.Debugf("[Drive] retreived root folderID '%s' is different than supplied teamdrive ID '%s': cloning it within the index",
 			remoteRootID, c.rc.Drive.TeamDrive)
 		if err = c.index.Set(c.rc.Drive.TeamDrive, remoteRootInfos); err != nil {
 			err = fmt.Errorf("failed to clone root folder file infos as teamdrive within the local index: %w", err)
@@ -128,7 +128,7 @@ func (c *Controller) initState(reindex bool) (err error) {
 		}
 	} else if c.logger.IsDebugShown() {
 		// Nb Keys has a performance hit only call it if needed
-		c.logger.Debugf("[DriveWatcher] local index contains %d nodes", c.index.NbKeys())
+		c.logger.Debugf("[Drive] local index contains %d nodes", c.index.NbKeys())
 	}
 	return
 }

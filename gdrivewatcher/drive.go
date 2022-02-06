@@ -52,7 +52,7 @@ func (c *Controller) getDriveChangesStartPage() (changesStartToken string, err e
 }
 
 func (c *Controller) getDriveListing(pageToken string) (files []*drive.File, nextPageToken string, err error) {
-	c.logger.Debug("[DriveWatcher] getting a new page of files...")
+	c.logger.Debug("[Drive] getting a new page of files...")
 	// Build Request
 	listReq := c.driveClient.Files.List()
 	listReq.Spaces("drive").Q("trashed=false")
@@ -83,7 +83,7 @@ func (c *Controller) getDriveListing(pageToken string) (files []*drive.File, nex
 		err = fmt.Errorf("failed to execute the API query for files list: %w", err)
 		return
 	}
-	c.logger.Debugf("[DriveWatcher] %d file(s) obtained in this page in %v", len(filesList.Files), time.Since(start))
+	c.logger.Debugf("[Drive] %d file(s) obtained in this page in %v", len(filesList.Files), time.Since(start))
 	// Extract files from answer
 	files = filesList.Files
 	nextPageToken = filesList.NextPageToken
@@ -92,7 +92,7 @@ func (c *Controller) getDriveListing(pageToken string) (files []*drive.File, nex
 }
 
 func (c *Controller) getDriveChanges(nextPageToken string) (changes []*drive.Change, nextStartPage string, err error) {
-	c.logger.Debug("[DriveWatcher] getting a new page of changes...")
+	c.logger.Debug("[Drive] getting a new page of changes...")
 	// Build Request
 	changesReq := c.driveClient.Changes.List(nextPageToken).Context(c.ctx)
 	changesReq.IncludeRemoved(true)
@@ -121,12 +121,12 @@ func (c *Controller) getDriveChanges(nextPageToken string) (changes []*drive.Cha
 		err = fmt.Errorf("failed to execute the API query for changes list: %w", err)
 		return
 	}
-	c.logger.Debugf("[DriveWatcher] changes page obtained in %v", time.Since(start))
+	c.logger.Debugf("[Drive] changes page obtained in %v", time.Since(start))
 	// Extract changes from answer
 	changes = changeList.Changes
 	// Is there any pages left ?
 	if changeList.NextPageToken != "" {
-		c.logger.Debugf("[DriveWatcher] another page of changes is available at %s", changeList.NextPageToken)
+		c.logger.Debugf("[Drive] another page of changes is available at %s", changeList.NextPageToken)
 		var nextPagesChanges []*drive.Change
 		if nextPagesChanges, nextStartPage, err = c.getDriveChanges(changeList.NextPageToken); err != nil {
 			err = fmt.Errorf("failed to get change list next page: %w", err)
@@ -140,12 +140,12 @@ func (c *Controller) getDriveChanges(nextPageToken string) (changes []*drive.Cha
 		err = errors.New("end of changelist should contain NewStartPageToken")
 		return
 	}
-	c.logger.Debugf("[DriveWatcher] no more changes pages, recovering the marker for next run: %s", changeList.NewStartPageToken)
+	c.logger.Debugf("[Drive] no more changes pages, recovering the marker for next run: %s", changeList.NewStartPageToken)
 	nextStartPage = changeList.NewStartPageToken
 	// Done
 	if c.logger.IsDebugShown() {
 		for index, change := range changes {
-			c.logger.Debugf("[DriveWatcher] raw change #%d: %+v", index+1, *change)
+			c.logger.Debugf("[Drive] raw change #%d: %+v", index+1, *change)
 		}
 	}
 	return
@@ -161,7 +161,7 @@ func (c *Controller) getDriveFileInfo(fileID string) (infos *driveFileBasicInfo,
 }
 
 func (c *Controller) getDriveFileInfoWithID(fileID string) (recoveredID string, infos *driveFileBasicInfo, err error) {
-	c.logger.Debugf("[DriveWatcher] requesting information about fileID '%s'...", fileID)
+	c.logger.Debugf("[Drive] requesting information about fileID '%s'...", fileID)
 	// Build request
 	fileRequest := c.driveClient.Files.Get(fileID).Context(c.ctx)
 	fileRequest.Fields(googleapi.Field("id"), googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"))
@@ -179,7 +179,7 @@ func (c *Controller) getDriveFileInfoWithID(fileID string) (recoveredID string, 
 		err = fmt.Errorf("failed to execute file info get API query: %w", err)
 		return
 	}
-	c.logger.Debugf("[DriveWatcher] information about fileID '%s' recovered in %v", fileID, time.Since(start))
+	c.logger.Debugf("[Drive] information about fileID '%s' recovered in %v", fileID, time.Since(start))
 	// Extract data
 	recoveredID = fii.Id
 	infos = &driveFileBasicInfo{

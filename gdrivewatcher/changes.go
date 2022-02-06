@@ -45,9 +45,9 @@ func (c *Controller) getFilesChanges() (changedFiles []drivechange.File, err err
 			return
 		}
 	}
-	c.logger.Debugf("[DriveWatcher] %d raw change(s) recovered in %v", len(changes), time.Since(start))
+	c.logger.Debugf("[Drive] %d raw change(s) recovered in %v", len(changes), time.Since(start))
 	if len(changes) == 0 {
-		c.logger.Info("[DriveWatcher] no changes detected")
+		c.logger.Info("[Drive] no changes detected")
 		return
 	}
 	// Build the index with parents for further path computation
@@ -58,7 +58,7 @@ func (c *Controller) getFilesChanges() (changedFiles []drivechange.File, err err
 	}
 	if c.logger.IsDebugShown() {
 		// NbKeys has a performance hit, call it only if we need to
-		c.logger.Debugf("[DriveWatcher] index updated in %v, currently containing %d nodes", time.Since(indexStart), c.index.NbKeys())
+		c.logger.Debugf("[Drive] index updated in %v, currently containing %d nodes", time.Since(indexStart), c.index.NbKeys())
 	}
 	// Process each event
 	processStart := time.Now()
@@ -76,16 +76,16 @@ func (c *Controller) getFilesChanges() (changedFiles []drivechange.File, err err
 		}
 	}
 	if len(changedFiles) != len(changes) {
-		c.logger.Debugf("[DriveWatcher] filtered out %d change(s) that was not a file change", len(changes)-len(changedFiles))
+		c.logger.Debugf("[Drive] filtered out %d change(s) that was not a file change", len(changes)-len(changedFiles))
 	}
-	c.logger.Debugf("[DriveWatcher] %d raw change(s) processed in %v", len(changes), time.Since(processStart))
+	c.logger.Debugf("[Drive] %d raw change(s) processed in %v", len(changes), time.Since(processStart))
 	// Done
-	c.logger.Infof("[DriveWatcher] %d valid change(s) on %d recovered change(s) compiled in %v", len(changedFiles), len(changes), time.Since(start))
+	c.logger.Infof("[Drive] %d valid change(s) on %d recovered change(s) compiled in %v", len(changedFiles), len(changes), time.Since(start))
 	return
 }
 
 func (c *Controller) addChangesFilesToIndex(changes []*drive.Change) (err error) {
-	c.logger.Debugf("[DriveWatcher] update the index using %d change(s)", len(changes))
+	c.logger.Debugf("[Drive] update the index using %d change(s)", len(changes))
 	// Build the file index starting by infos contained in the change list
 	lookup := make([]string, 0, len(changes))
 	for _, change := range changes {
@@ -100,7 +100,7 @@ func (c *Controller) addChangesFilesToIndex(changes []*drive.Change) (err error)
 		// Sometimes the file field come back empty, no idea why
 		if change.File == nil {
 			// should not happen if not remove change event
-			c.logger.Warningf("[DriveWatcher] file change for fileID %s had its file metadata empty, adding it to the lookup list", change.FileId)
+			c.logger.Warningf("[Drive] file change for fileID %s had its file metadata empty, adding it to the lookup list", change.FileId)
 			continue
 		}
 		// Update index with infos
@@ -155,10 +155,10 @@ func (c *Controller) processChange(change *drive.Change) (fc *drivechange.File, 
 	if change.Removed || fileTrashed {
 		defer func() {
 			if deleteErr := c.index.Delete(change.FileId); err != nil {
-				c.logger.Errorf("[DriveWatcher] failed to delete fileID '%s' from local index after processing its removed change event: %s",
+				c.logger.Errorf("[Drive] failed to delete fileID '%s' from local index after processing its removed change event: %s",
 					change.FileId, deleteErr)
 			} else {
-				c.logger.Debugf("[DriveWatcher] deleted fileID '%s' from local index after processing its removed/trashed change event",
+				c.logger.Debugf("[Drive] deleted fileID '%s' from local index after processing its removed/trashed change event",
 					change.FileId)
 			}
 		}()
@@ -176,7 +176,7 @@ func (c *Controller) processChange(change *drive.Change) (fc *drivechange.File, 
 		if c.rc.Drive.RootFolderID != "" {
 			// TODO: cutAt yield new driveFilePath
 			if !reversedPath.CutAt(c.rc.Drive.RootFolderID) {
-				c.logger.Debugf("[DriveWatcher] path '%s' does not contain the custom root folder id, discarding it", reversedPath.Reverse().Path())
+				c.logger.Debugf("[Drive] path '%s' does not contain the custom root folder id, discarding it", reversedPath.Reverse().Path())
 				continue // root folder id not found in this path, skipping
 			}
 		}
@@ -185,7 +185,7 @@ func (c *Controller) processChange(change *drive.Change) (fc *drivechange.File, 
 	}
 	if len(validPaths) == 0 {
 		// no valid path found (because of root folder id) skipping this change
-		c.logger.Debugf("[DriveWatcher] change for file '%s' does not contain any valid path, discarding it", fileName)
+		c.logger.Debugf("[Drive] change for file '%s' does not contain any valid path, discarding it", fileName)
 		return
 	}
 	// Convert times
@@ -223,7 +223,7 @@ func (c *Controller) compileFileInfosFor(change *drive.Change) (fileName string,
 	}
 	if !found {
 		if change.Removed {
-			c.logger.Debugf("[DriveWatcher] fileID %s has been removed but it is not within our index: we can not compute its path and therefor will be skipped",
+			c.logger.Debugf("[Drive] fileID %s has been removed but it is not within our index: we can not compute its path and therefor will be skipped",
 				change.FileId)
 			skip = true
 		} else {

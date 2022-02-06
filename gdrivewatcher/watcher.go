@@ -14,7 +14,7 @@ func (c *Controller) watcher(interval time.Duration) {
 		err       error
 	)
 	if sameDrive, err = c.validateStateAgainstRemoteDrive(); err != nil {
-		c.logger.Errorf("[DriveWatcher] failed to validate if remote drive has changed: %s", err)
+		c.logger.Errorf("[Drive] failed to validate if remote drive has changed: %s", err)
 		if c.ctx.Err() == nil {
 			c.killSwitch()
 		}
@@ -22,7 +22,7 @@ func (c *Controller) watcher(interval time.Duration) {
 	}
 	// Fresh start ? (or reset)
 	if err := c.initState(!sameDrive); err != nil {
-		c.logger.Errorf("[DriveWatcher] failed to initialize local state: %s", err)
+		c.logger.Errorf("[Drive] failed to initialize local state: %s", err)
 		if c.ctx.Err() == nil {
 			c.killSwitch()
 		}
@@ -31,20 +31,20 @@ func (c *Controller) watcher(interval time.Duration) {
 	// Start the watch
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	c.logger.Infof("[DriveWatcher] will check for changes every %v", interval)
+	c.logger.Infof("[Drive] will check for changes every %v", interval)
 	for {
 		select {
 		case <-ticker.C:
 			c.workerPass()
 		case <-c.ctx.Done():
-			c.logger.Debug("[DriveWatcher] stopping watcher as main context has been cancelled")
+			c.logger.Debug("[Drive] stopping watcher as main context has been cancelled")
 			return
 		}
 	}
 }
 
 func (c *Controller) workerPass() {
-	c.logger.Debug("[DriveWatcher] checking changes...")
+	c.logger.Debug("[Drive] checking changes...")
 	// Compute the paths containing changes
 	changesFiles, err := c.getFilesChanges()
 	if err != nil {

@@ -58,7 +58,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		err = fmt.Errorf("failed to initialize the RClone controller: %w", err)
 		return
 	}
-	conf.Logger.Infof("[DriveWatcher] %s", rc.Summary())
+	conf.Logger.Infof("[Drive] %s", rc.Summary())
 	// Then we initialize ourself
 	c = &Controller{
 		ctx:        ctx,
@@ -86,7 +86,7 @@ func (c *Controller) stopper() {
 	// Waiting for stop signal
 	<-c.ctx.Done()
 	// Wait for workers to correctly stop
-	c.logger.Debug("[DriveWatcher] waiting for all workers to stop...")
+	c.logger.Debug("[Drive] waiting for all workers to stop...")
 	c.workers.Wait()
 	// Mark full stop
 	close(c.fullStop)
