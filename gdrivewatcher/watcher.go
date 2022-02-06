@@ -50,6 +50,9 @@ func (c *Controller) workerPass() {
 		c.logger.Errorf("failed to retreived changed files: %s", err)
 		return
 	}
+	if len(changesFiles) == 0 {
+		return
+	}
 	// Walk thru results to log and decrypt if needed
 	var deletedSuffix string
 	for changeIndex, change := range changesFiles {
@@ -82,5 +85,8 @@ func (c *Controller) workerPass() {
 		}
 	}
 	// Send the collection to the consumer
-	// TODO channel
+	c.logger.Debug("[Drive] sending change(s)...")
+	c.output <- changesFiles
+	c.logger.Debugf("[Drive] sent %d change(s)", len(changesFiles))
+
 }

@@ -7,8 +7,10 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/hekmon/rcgdip/drivechange"
 	"github.com/hekmon/rcgdip/gdrivewatcher"
 	"github.com/hekmon/rcgdip/gdrivewatcher/rcsnooper"
+	"github.com/hekmon/rcgdip/plextriggerer"
 	"github.com/hekmon/rcgdip/storage"
 
 	"github.com/hekmon/hllogger"
@@ -20,9 +22,10 @@ var (
 	// Flags
 	systemdLaunched bool
 	// Controllers
-	logger       *hllogger.HlLogger
-	db           *storage.Controller
-	driveWatcher *gdrivewatcher.Controller
+	logger        *hllogger.HlLogger
+	db            *storage.Controller
+	driveWatcher  *gdrivewatcher.Controller
+	plexTriggerer *plextriggerer.Controller
 	// Clean stop
 	mainCtx       context.Context
 	mainCtxCancel func()
@@ -61,6 +64,9 @@ func main() {
 	}
 	logger.Info("[Main] storage backend ready")
 
+	// Prepare the communication channel
+	changesChan := make(chan []drivechange.File)
+
 	// Initialize GDrive controller
 	logger.Info("[Main] initializing the Google Drive watcher...")
 	if driveWatcher, err = gdrivewatcher.New(mainCtx, gdrivewatcher.Config{
@@ -74,10 +80,28 @@ func main() {
 		StateBackend: db.NewScoppedAccess("drive_state"),
 		IndexBackend: db.NewScoppedAccess("drive_index"),
 		KillSwitch:   mainCtxCancel,
+		Output:       changesChan,
 	}); err != nil {
-		logger.Fatalf(1, "[Main] failed to initialize the Google Drive watcher: %s", err.Error())
+		logger.Errorf("[Main] failed to initialize the Google Drive watcher: %s", err.Error())
+		mainCtxCancel()
+		<-mainStop
+		os.Exit(2)
 	}
 	logger.Info("[Main] Google Drive watcher started")
+
+	// Initialize the Plex controller
+	logger.Info("[Main] initializing the Plex Triggerer...")
+	if plexTriggerer, err = plextriggerer.New(mainCtx, plextriggerer.Config{
+		Input:        changesChan,
+		PollInterval: devpollinterval,
+		Logger:       logger,
+	}); err != nil {
+		logger.Errorf("[Main] failed to initialize the Plex Triggerer: %s", err.Error())
+		mainCtxCancel()
+		<-mainStop
+		os.Exit(3)
+	}
+	logger.Info("[Main] Plex Triggerer started")
 
 	// We are ready
 	if err := sysdnotify.Ready(); err != nil {
@@ -124,11 +148,20 @@ func stopper() {
 	}
 	// Start workers waiters
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		driveWatcher.WaitUntilFullStop()
-		wg.Done()
-	}()
+	if driveWatcher != nil {
+		wg.Add(1)
+		go func() {
+			driveWatcher.WaitUntilFullStop()
+			wg.Done()
+		}()
+	}
+	if plexTriggerer != nil {
+		wg.Add(1)
+		go func() {
+			plexTriggerer.WaitUntilFullStop()
+			wg.Done()
+		}()
+	}
 	// Wait for all
 	wg.Wait()
 	// All workers have exited, clean stop the db

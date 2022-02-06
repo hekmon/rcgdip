@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hekmon/rcgdip/drivechange"
 	"github.com/hekmon/rcgdip/gdrivewatcher/rcsnooper"
 
 	"github.com/hekmon/hllogger"
@@ -20,6 +21,7 @@ type Config struct {
 	StateBackend Storage
 	IndexBackend Storage
 	KillSwitch   func()
+	Output       chan<- []drivechange.File
 }
 
 type Storage interface {
@@ -46,6 +48,8 @@ type Controller struct {
 	// Storage
 	state Storage
 	index Storage
+	// Watcher info
+	output chan<- []drivechange.File
 	// Workers control plane
 	workers  sync.WaitGroup
 	fullStop chan struct{}
@@ -68,6 +72,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		limiter:    rate.NewLimiter(rate.Every(time.Minute/requestPerMin), requestPerMin/2),
 		state:      conf.StateBackend,
 		index:      conf.IndexBackend,
+		output:     conf.Output,
 	}
 	if err = c.initDriveClient(); err != nil {
 		err = fmt.Errorf("unable to initialize Drive API client: %w", err)
