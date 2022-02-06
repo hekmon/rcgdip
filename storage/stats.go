@@ -29,7 +29,7 @@ func (c *Controller) saveStats() {
 	if err := c.statsRealm.Set(maxSizeValueKey, c.maxSizeValue); err != nil {
 		c.logger.Errorf("[Storage] failed to save the %s stats value: %s", maxSizeValueKey, err.Error())
 	}
-	c.logger.Debugf("[Storage] saved stats: max size key encoutered is %d and max size value encoutered is %d", c.maxSizeKey, c.maxSizeValue)
+	c.logger.Debugf("[Storage] saved stats: max size key encountered is %d and max size value encountered is %d", c.maxSizeKey, c.maxSizeValue)
 	c.statsAccess.Unlock()
 }
 
