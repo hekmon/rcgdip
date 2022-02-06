@@ -1,7 +1,6 @@
 package gdrivewatcher
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -51,20 +50,37 @@ func (c *Controller) workerPass() {
 		c.logger.Errorf("failed to retreived changed files: %s", err)
 		return
 	}
-	fmt.Println("---- CHANGED FILES ----")
-	for _, change := range changesFiles {
-		fmt.Printf("%v %v %v", change.Event, change.Deleted, change.Folder)
-		for _, path := range change.Paths {
-			fmt.Printf("\t%s", path)
+	// Walk thru results to log and decrypt if needed
+	var deletedSuffix string
+	for changeIndex, change := range changesFiles {
+		for pathIndex, path := range change.Paths {
+			// Handle encryption if needed
 			if c.rc.CryptCipher != nil {
 				decryptedPath, err := c.rc.CryptCipher.DecryptFileName(path)
 				if err != nil {
-					panic(err)
+					c.logger.Errorf("[Drive] can not decrypt path '%s': %s", path, err)
+					continue
 				}
-				fmt.Printf(" -> %s", decryptedPath)
+				c.logger.Debugf("[Drive] path decrypted using '%s' rclone backend configuration: %s  -->  %s",
+					c.rc.Conf.CryptBackendName, path, decryptedPath)
+				path = decryptedPath
+				change.Paths[pathIndex] = path
+			}
+			// Print the changed files
+			if !change.Folder {
+				if change.Deleted {
+					deletedSuffix = " (removed)"
+				} else {
+					deletedSuffix = ""
+				}
+				c.logger.Infof("[Drive] file change detected: %s%s", path, deletedSuffix)
 			}
 		}
-		fmt.Println()
+		// Save the change with decrypted paths if needed
+		if c.rc.CryptCipher != nil {
+			changesFiles[changeIndex] = change
+		}
 	}
-	fmt.Println("--------")
+	// Send the collection to the consumer
+	// TODO channel
 }

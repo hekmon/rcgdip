@@ -17,7 +17,7 @@ type Config struct {
 }
 
 type Controller struct {
-	conf Config
+	Conf Config
 	// rclone config
 	Drive       DriveBackend
 	CryptCipher *crypt.Cipher
@@ -25,7 +25,7 @@ type Controller struct {
 
 func New(conf Config) (rcsnooper *Controller, err error) {
 	rcsnooper = &Controller{
-		conf: conf,
+		Conf: conf,
 	}
 	// Load RClone config into rclone modules
 	if err = rcsnooper.loadRCloneConfig(conf.RCloneConfigPath); err != nil {
@@ -70,8 +70,8 @@ func (c *Controller) loadRCloneConfig(configPath string) (err error) {
 func (c *Controller) Summary() string {
 	b := make([]string, 0, 5)
 
-	b = append(b, fmt.Sprintf("config path: %s", c.conf.RCloneConfigPath))
-	b = append(b, fmt.Sprintf("drive backend: %s", c.conf.DriveBackendName))
+	b = append(b, fmt.Sprintf("config path: %s", c.Conf.RCloneConfigPath))
+	b = append(b, fmt.Sprintf("drive backend: %s", c.Conf.DriveBackendName))
 	if c.Drive.RootFolderID != "" {
 		b = append(b, fmt.Sprintf("custom root folderID: %s", c.Drive.RootFolderID))
 	} else {
@@ -82,8 +82,8 @@ func (c *Controller) Summary() string {
 	} else {
 		b = append(b, "no team drive")
 	}
-	if c.conf.CryptBackendName != "" {
-		b = append(b, fmt.Sprintf("crypt drive backend: %s", c.conf.CryptBackendName))
+	if c.Conf.CryptBackendName != "" {
+		b = append(b, fmt.Sprintf("crypt drive backend: %s", c.Conf.CryptBackendName))
 	}
 
 	return strings.Join(b, ", ")
