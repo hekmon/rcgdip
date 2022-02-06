@@ -4,17 +4,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hekmon/rcgdip/drivechange"
+
 	"google.golang.org/api/drive/v3"
 )
 
-type fileChange struct {
-	Event   time.Time
-	Folder  bool
-	Deleted bool
-	Paths   []string
-}
-
-func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
+func (c *Controller) getFilesChanges() (changedFiles []drivechange.File, err error) {
 	// Save the start token in case something goes wrong for future retry
 	var (
 		backupStartToken string
@@ -67,8 +62,8 @@ func (c *Controller) getFilesChanges() (changedFiles []fileChange, err error) {
 	}
 	// Process each event
 	processStart := time.Now()
-	changedFiles = make([]fileChange, 0, len(changes))
-	var fc *fileChange
+	changedFiles = make([]drivechange.File, 0, len(changes))
+	var fc *drivechange.File
 	for _, change := range changes {
 		// Transforme change into a suitable file event
 		if fc, err = c.processChange(change); err != nil {
@@ -142,7 +137,7 @@ func (c *Controller) addChangesFilesToIndex(changes []*drive.Change) (err error)
 	return
 }
 
-func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err error) {
+func (c *Controller) processChange(change *drive.Change) (fc *drivechange.File, err error) {
 	// Skip if the change is drive metadata related
 	if change.ChangeType != "file" {
 		return
@@ -200,7 +195,7 @@ func (c *Controller) processChange(change *drive.Change) (fc *fileChange, err er
 		return
 	}
 	// Return the consolidated info for caller
-	fc = &fileChange{
+	fc = &drivechange.File{
 		Event:   changeTime,
 		Folder:  fileIsFolder,
 		Deleted: change.Removed || fileTrashed,
