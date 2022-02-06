@@ -79,6 +79,19 @@ func (c *Controller) getFilesChanges() (changedFiles []drivechange.File, err err
 		c.logger.Debugf("[Drive] filtered out %d change(s) that was not a file change", len(changes)-len(changedFiles))
 	}
 	c.logger.Debugf("[Drive] %d raw change(s) processed in %v", len(changes), time.Since(processStart))
+	// Cleanup index now that every change has builded paths
+	for _, change := range changes {
+		if change.Removed || (change.File != nil && change.File.Trashed) {
+			if err = c.index.Delete(change.FileId); err != nil {
+				c.logger.Errorf("[Drive] failed to delete fileID '%s' from local index after processing its removed change event: %s",
+					change.FileId, err)
+				err = nil
+			} else {
+				c.logger.Debugf("[Drive] deleted fileID '%s' from local index after processing its removed/trashed change event",
+					change.FileId)
+			}
+		}
+	}
 	// Done
 	c.logger.Infof("[Drive] %d valid change(s) on %d recovered change(s) compiled in %v", len(changedFiles), len(changes), time.Since(start))
 	return
@@ -150,18 +163,6 @@ func (c *Controller) processChange(change *drive.Change) (fc *drivechange.File, 
 	}
 	if skip {
 		return
-	}
-	// Purge file from index at the end if deletion
-	if change.Removed || fileTrashed {
-		defer func() {
-			if deleteErr := c.index.Delete(change.FileId); err != nil {
-				c.logger.Errorf("[Drive] failed to delete fileID '%s' from local index after processing its removed change event: %s",
-					change.FileId, deleteErr)
-			} else {
-				c.logger.Debugf("[Drive] deleted fileID '%s' from local index after processing its removed/trashed change event",
-					change.FileId)
-			}
-		}()
 	}
 	// Compute possible paths (bottom up)
 	reversedPaths, err := c.generateReversePaths(change.FileId)
