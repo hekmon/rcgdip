@@ -94,6 +94,7 @@ func main() {
 	if plexTriggerer, err = plextriggerer.New(mainCtx, plextriggerer.Config{
 		Input:        changesChan,
 		PollInterval: devpollinterval,
+		MountPoint:   devmountpoint,
 		Logger:       logger,
 	}); err != nil {
 		logger.Errorf("[Main] failed to initialize the Plex Triggerer: %s", err.Error())
