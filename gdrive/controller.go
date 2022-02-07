@@ -1,4 +1,4 @@
-package gdrivewatcher
+package gdrive
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/hekmon/rcgdip/drivechange"
-	"github.com/hekmon/rcgdip/gdrivewatcher/rcsnooper"
+	"github.com/hekmon/rcgdip/gdrive/rcsnooper"
 
 	"github.com/hekmon/hllogger"
 	"golang.org/x/time/rate"
@@ -56,6 +56,11 @@ type Controller struct {
 }
 
 func New(ctx context.Context, conf Config) (c *Controller, err error) {
+	defer func() {
+		if err != nil {
+			c = nil
+		}
+	}()
 	// First we initialize the RClone config snooper
 	rc, err := rcsnooper.New(conf.RClone)
 	if err != nil {

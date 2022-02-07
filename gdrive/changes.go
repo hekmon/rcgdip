@@ -1,4 +1,4 @@
-package gdrivewatcher
+package gdrive
 
 import (
 	"fmt"

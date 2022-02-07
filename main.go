@@ -8,9 +8,9 @@ import (
 	"syscall"
 
 	"github.com/hekmon/rcgdip/drivechange"
-	"github.com/hekmon/rcgdip/gdrivewatcher"
-	"github.com/hekmon/rcgdip/gdrivewatcher/rcsnooper"
-	"github.com/hekmon/rcgdip/plextriggerer"
+	"github.com/hekmon/rcgdip/gdrive"
+	"github.com/hekmon/rcgdip/gdrive/rcsnooper"
+	"github.com/hekmon/rcgdip/plex"
 	"github.com/hekmon/rcgdip/storage"
 
 	"github.com/hekmon/hllogger"
@@ -24,8 +24,8 @@ var (
 	// Controllers
 	logger        *hllogger.HlLogger
 	db            *storage.Controller
-	driveWatcher  *gdrivewatcher.Controller
-	plexTriggerer *plextriggerer.Controller
+	driveWatcher  *gdrive.Controller
+	plexTriggerer *plex.Controller
 	// Clean stop
 	mainCtx       context.Context
 	mainCtxCancel func()
@@ -69,7 +69,7 @@ func main() {
 
 	// Initialize GDrive controller
 	logger.Info("[Main] initializing the Google Drive watcher...")
-	if driveWatcher, err = gdrivewatcher.New(mainCtx, gdrivewatcher.Config{
+	if driveWatcher, err = gdrive.New(mainCtx, gdrive.Config{
 		RClone: rcsnooper.Config{
 			RCloneConfigPath: devrcloneconfigpath,
 			DriveBackendName: devdrivebackendname,
@@ -91,7 +91,7 @@ func main() {
 
 	// Initialize the Plex controller
 	logger.Info("[Main] initializing the Plex Triggerer...")
-	if plexTriggerer, err = plextriggerer.New(mainCtx, plextriggerer.Config{
+	if plexTriggerer, err = plex.New(mainCtx, plex.Config{
 		Input:        changesChan,
 		PollInterval: devpollinterval,
 		MountPoint:   devmountpoint,
