@@ -19,6 +19,9 @@ import (
 )
 
 var (
+	// Linking time
+	appName    = "rcgdip"
+	appVersion = "0.0.0"
 	// Flags
 	systemdLaunched bool
 	// Controllers
@@ -92,12 +95,15 @@ func main() {
 	// Initialize the Plex controller
 	logger.Info("[Main] initializing the Plex Triggerer...")
 	if plexTriggerer, err = plex.New(mainCtx, plex.Config{
-		Input:        changesChan,
-		PollInterval: devpollinterval,
-		MountPoint:   devmountpoint,
-		PlexURL:      plexURL,
-		PlexToken:    plexToken,
-		Logger:       logger,
+		Input:          changesChan,
+		PollInterval:   devpollinterval,
+		MountPoint:     devmountpoint,
+		PlexURL:        plexURL,
+		PlexToken:      plexToken,
+		ProductName:    appName,
+		ProductVersion: appVersion,
+		StateBackend:   db.NewScoppedAccess("plex_state"),
+		Logger:         logger,
 	}); err != nil {
 		logger.Errorf("[Main] failed to initialize the Plex Triggerer: %s", err.Error())
 		mainCtxCancel()

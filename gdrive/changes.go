@@ -76,7 +76,7 @@ func (c *Controller) getFilesChanges() (changedFiles []drivechange.File, err err
 		}
 	}
 	if len(changedFiles) != len(changes) {
-		c.logger.Debugf("[Drive] filtered out %d change(s) that was not a file change", len(changes)-len(changedFiles))
+		c.logger.Debugf("[Drive] filtered out %d change(s) that were not a file change", len(changes)-len(changedFiles))
 	}
 	c.logger.Debugf("[Drive] %d raw change(s) processed in %v", len(changes), time.Since(processStart))
 	// Cleanup index now that every change has builded paths

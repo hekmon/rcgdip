@@ -1,8 +1,10 @@
 package plex
 
 import (
+	"fmt"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/hekmon/rcgdip/drivechange"
 )
@@ -10,6 +12,8 @@ import (
 func (c *Controller) triggerWorker(input <-chan []drivechange.File) {
 	// Prepare
 	defer c.workers.Done()
+	// Testing the plex connection
+	c.testPlexConnection()
 	// Wake up for work or stop
 	c.logger.Debug("[Plex] waiting for input")
 	for {
@@ -23,29 +27,94 @@ func (c *Controller) triggerWorker(input <-chan []drivechange.File) {
 	}
 }
 
+func (c *Controller) testPlexConnection() {
+	// Get libs
+	libs, _, err := c.plex.GetLibraries(c.ctx)
+	if err != nil {
+		c.logger.Errorf("[Plex] failed to query the current libraries: %s", err.Error())
+		return
+	}
+	// Check libs locations
+	var (
+		nbPaths      int
+		nbCandidates int
+	)
+	for _, lib := range libs {
+		nbPaths += len(lib.Locations)
+		for _, location := range lib.Locations {
+			if strings.HasPrefix(location, c.mountPoint) {
+				nbCandidates++
+			}
+		}
+	}
+	if nbPaths == 0 {
+		c.logger.Warning("[Plex] no location found in any library: change events won't trigger any scan")
+	} else if nbCandidates == 0 {
+		c.logger.Warningf("[Plex] found %d libraries based on %d locations but none are based on rclone mount point '%s': change events won't trigger any scan",
+			len(libs), nbPaths, c.mountPoint)
+	} else {
+		c.logger.Infof("[Plex] found %d libraries based on %d locations on which %d are based on rclone mountpoint '%s'",
+			len(libs), nbPaths, nbCandidates, c.mountPoint)
+	}
+}
+
 func (c *Controller) workerPass(changes []drivechange.File) {
 	c.logger.Debugf("[Plex] received a batch of %d change(s)", len(changes))
 	// Build uniq fully qualified folder paths to scan
 	scanList := c.extractBasePathsToScan(changes)
-	c.logger.Infof("[Plex] scheduling scan for the following paths: %s", strings.Join(scanList, ", "))
+	if c.logger.IsInfoShown() {
+		paths := make([]string, len(scanList))
+		index := 0
+		for path := range scanList {
+			paths[index] = path
+			index++
+		}
+		c.logger.Infof("[Plex] the following %d path(s) need scanning: %s", len(paths), strings.Join(paths, ", "))
+	}
 	// Get plex libs
-	// TODO
+	libs, _, err := c.plex.GetLibraries(c.ctx)
+	if err != nil {
+		c.logger.Errorf("[Plex] failed to query the current libraries, aborting this batch: %s", err.Error())
+		return
+	}
+	// Create scan jobs for each path if we can
+	jobs := make([]jobElement, 0, len(scanList)*len(libs))
+	for path, eventTime := range scanList {
+		jobs = append(jobs, c.generateJobsDefinition(path, eventTime, libs)...)
+	}
+	c.logger.Debugf("[Plex] created %d scan jobs", len(jobs))
+	// Start or schedule the jobs (TODO)
+	fmt.Printf("%+v\n", jobs)
 }
 
-func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanList []string) {
-	var nbPaths int
+func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanList map[string]time.Time) {
+	var (
+		nbPaths  int
+		found    bool
+		pathTime time.Time
+	)
 	for _, change := range changes {
 		nbPaths += len(change.Paths)
 	}
-	paths := make(map[string]struct{}, nbPaths)
+	scanList = make(map[string]time.Time, nbPaths)
 	nbPaths = 0
 	for _, change := range changes {
 		for _, changePath := range change.Paths {
+			// TODO rework this part
 			if change.Folder {
 				if change.Deleted {
 					// add parent
 					parent := path.Clean(c.mountPoint + path.Dir(changePath))
-					paths[parent] = struct{}{}
+					if pathTime, found = scanList[parent]; !found {
+						scanList[parent] = change.Event
+					} else if pathTime.Before(change.Event) {
+						// current event is freshed than previously registered for this path,
+						// this means we need to wait longer to see it locally, always use
+						// the one we need to wait for the most to avoid scanning too early
+						c.logger.Debugf("[Plex] path '%s' was already registered for scan for event at %v. But a new event is younger, replacing time: %v",
+							parent, pathTime, change.Event)
+						scanList[parent] = change.Event
+					}
 					c.logger.Debugf("[Plex] folder '%s' deleted, adding its parent to scan list: %s", changePath, parent)
 				} else {
 					c.logger.Debugf("[Plex] skipping folder change not being deletion: %s", changePath)
@@ -53,7 +122,16 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 			} else {
 				// add parent
 				parent := path.Clean(c.mountPoint + path.Dir(changePath))
-				paths[parent] = struct{}{}
+				if pathTime, found = scanList[parent]; !found {
+					scanList[parent] = change.Event
+				} else if pathTime.Before(change.Event) {
+					// current event is freshed than previously registered for this path,
+					// this means we need to wait longer to see it locally, always use
+					// the one we need to wait for the most to avoid scanning too early
+					c.logger.Debugf("[Plex] path '%s' was already registered for scan for event at %v. But a new event is younger, replacing time: %v",
+						parent, pathTime, change.Event)
+					scanList[parent] = change.Event
+				}
 				if c.logger.IsDebugShown() {
 					var action string
 					if change.Deleted {
@@ -67,25 +145,24 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 		}
 	}
 	// Detect if some paths are included within parents scheduled for scan
-	for candidatePath := range paths {
-		for evaluatedPath := range paths {
-			if candidatePath == evaluatedPath {
+	for potentialParentPath, potentialParentTime := range scanList {
+		for potentialChildPath, potentialChildTime := range scanList {
+			if potentialParentPath == potentialChildPath {
 				// do not compare against self
 				continue
 			}
-			if strings.HasPrefix(evaluatedPath, candidatePath) {
+			if strings.HasPrefix(potentialChildPath, potentialParentPath) {
 				c.logger.Debugf("[Plex] path '%s' remove from scan list: its parent '%s' is already scheduled for scan",
-					evaluatedPath, candidatePath)
-				delete(paths, evaluatedPath)
+					potentialChildPath, potentialParentPath)
+				delete(scanList, potentialChildPath)
+				// If child was to be scanned later than parent, delay the parent to allow both of them to appear on the mount
+				if potentialChildTime.After(potentialParentTime) {
+					c.logger.Debugf("[Plex] delaying the scan of the parent '%s' (event at %v) because the removed child path (%s) to be scan was scheduled later (event at %v)",
+						potentialParentPath, potentialParentTime, potentialChildPath, potentialChildTime)
+					scanList[potentialParentPath] = potentialChildTime
+				}
 			}
 		}
-	}
-	// Final list of paths
-	scanList = make([]string, len(paths))
-	index := 0
-	for path := range paths {
-		scanList[index] = path
-		index++
 	}
 	return
 }

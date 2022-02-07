@@ -8,17 +8,36 @@ import (
 	"time"
 
 	"github.com/hekmon/rcgdip/drivechange"
+	plexapi "github.com/hekmon/rcgdip/plex/api"
 
 	"github.com/hekmon/hllogger"
 )
 
 type Config struct {
+	// Global config
 	Input        <-chan []drivechange.File
 	PollInterval time.Duration
 	MountPoint   string
-	PlexURL      string
-	PlexToken    string
-	Logger       *hllogger.HlLogger
+	// Plex API config
+	PlexURL        string
+	PlexToken      string
+	ProductName    string
+	ProductVersion string
+	// Storage
+	StateBackend Storage
+	// Sub controllers
+	Logger *hllogger.HlLogger
+}
+
+type Storage interface {
+	Clear() error
+	Delete(string) error
+	Get(string, interface{}) (bool, error)
+	Has(string) bool
+	Keys() []string
+	NbKeys() int
+	Set(string, interface{}) error
+	Sync() error
 }
 
 type Controller struct {
@@ -26,9 +45,11 @@ type Controller struct {
 	ctx        context.Context
 	interval   time.Duration
 	mountPoint string
+	// Storage
+	state Storage
 	// Controllers
 	logger *hllogger.HlLogger
-	// plex   *plex.Plex
+	plex   *plexapi.Client
 	// Workers control plane
 	workers  sync.WaitGroup
 	fullStop chan struct{}
@@ -45,6 +66,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		ctx:        ctx,
 		interval:   conf.PollInterval,
 		mountPoint: path.Clean(conf.MountPoint),
+		state:      conf.StateBackend,
 		logger:     conf.Logger,
 	}
 	// Process mount point
@@ -55,8 +77,23 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 	if c.mountPoint[len(c.mountPoint)-1] != '/' {
 		c.mountPoint += "/"
 	}
+	// Recover or generate a clientID
+	clientID, err := c.getClientID()
+	if err != nil {
+		err = fmt.Errorf("failed to recover or generate a client ID for the plex API: %w", err)
+		return
+	}
 	// Init the plex client
-	// TODO
+	if c.plex, err = plexapi.New(plexapi.Config{
+		BaseURL:        conf.PlexURL,
+		Token:          conf.PlexToken,
+		ProductName:    conf.ProductName,
+		ProductVersion: conf.ProductVersion,
+		ClientID:       clientID,
+	}); err != nil {
+		err = fmt.Errorf("failed to instanciate the Plex API client: %w", err)
+		return
+	}
 	// Workers
 	c.fullStop = make(chan struct{})
 	go c.stopper()

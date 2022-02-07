@@ -7,7 +7,7 @@ require (
 	github.com/hekmon/cunits/v2 v2.1.0
 	github.com/hekmon/hllogger v1.0.0
 	github.com/iguanesolutions/go-systemd/v5 v5.1.0
-	github.com/jrudio/go-plex-client v0.0.0-20220106065909-9e1d590b99aa
+	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
 	github.com/rclone/rclone v1.57.0
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
@@ -27,9 +27,7 @@ require (
 	github.com/gofrs/flock v0.8.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
-	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/jzelinskie/whirlpool v0.0.0-20201016144138-0675e54bb004 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.13 // indirect
