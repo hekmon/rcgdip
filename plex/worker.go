@@ -88,10 +88,11 @@ func (c *Controller) workerPass(changes []drivechange.File) {
 }
 
 func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanList map[string]time.Time) {
+	// Extract uniq parents to scan for file changes
 	var (
-		nbPaths  int
-		found    bool
-		pathTime time.Time
+		nbPaths                  int
+		found                    bool
+		alreadyScheduledPathTime time.Time
 	)
 	for _, change := range changes {
 		nbPaths += len(change.Paths)
@@ -100,47 +101,35 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 	nbPaths = 0
 	for _, change := range changes {
 		for _, changePath := range change.Paths {
-			// TODO rework this part
-			if change.Folder {
-				if change.Deleted {
-					// add parent
-					parent := path.Clean(c.mountPoint + path.Dir(changePath))
-					if pathTime, found = scanList[parent]; !found {
-						scanList[parent] = change.Event
-					} else if pathTime.Before(change.Event) {
-						// current event is freshed than previously registered for this path,
-						// this means we need to wait longer to see it locally, always use
-						// the one we need to wait for the most to avoid scanning too early
-						c.logger.Debugf("[Plex] path '%s' was already registered for scan for event at %v. But a new event is younger, replacing time: %v",
-							parent, pathTime, change.Event)
-						scanList[parent] = change.Event
-					}
-					c.logger.Debugf("[Plex] folder '%s' deleted, adding its parent to scan list: %s", changePath, parent)
-				} else {
-					c.logger.Debugf("[Plex] skipping folder change not being deletion: %s", changePath)
-				}
-			} else {
-				// add parent
-				parent := path.Clean(c.mountPoint + path.Dir(changePath))
-				if pathTime, found = scanList[parent]; !found {
-					scanList[parent] = change.Event
-				} else if pathTime.Before(change.Event) {
-					// current event is freshed than previously registered for this path,
-					// this means we need to wait longer to see it locally, always use
-					// the one we need to wait for the most to avoid scanning too early
-					c.logger.Debugf("[Plex] path '%s' was already registered for scan for event at %v. But a new event is younger, replacing time: %v",
-						parent, pathTime, change.Event)
-					scanList[parent] = change.Event
-				}
+			// Do not process folders not deleted
+			if change.Folder && !change.Deleted {
+				c.logger.Debugf("[Plex] skipping folder change not being deletion: %s", changePath)
+				continue
+			}
+			// Schedule scan for parent folder
+			parent := path.Clean(c.mountPoint + path.Dir(changePath))
+			if alreadyScheduledPathTime, found = scanList[parent]; !found {
+				scanList[parent] = change.Event
+				// Debug log
 				if c.logger.IsDebugShown() {
-					var action string
-					if change.Deleted {
-						action = "deleted"
+					if change.Folder { // and deleted ofc
+						c.logger.Debugf("[Plex] folder '%s' deleted, adding its parent to scan list: %s", changePath, parent)
 					} else {
-						action = "modified"
+						var action string
+						if change.Deleted {
+							action = "deleted"
+						} else {
+							action = "created or changed"
+						}
+						c.logger.Debugf("[Plex] file '%s' %s, adding its parent to scan list: %s", changePath, action, parent)
 					}
-					c.logger.Debugf("[Plex] file '%s' %s, adding its parent to scan list: %s", changePath, action, parent)
 				}
+			} else if alreadyScheduledPathTime.Before(change.Event) {
+				// current event is fresher thanthe one  previously registered for this path, this means we
+				// need to wait longer to see it locally, always use the one we need to wait for the most to avoid scanning too early
+				c.logger.Debugf("[Plex] path '%s' was already registered for scan for event at %v. But a new event is younger, replacing time: %v",
+					parent, alreadyScheduledPathTime, change.Event)
+				scanList[parent] = change.Event
 			}
 		}
 	}
