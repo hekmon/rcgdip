@@ -1,7 +1,6 @@
 package plex
 
 import (
-	"fmt"
 	"path"
 	"strings"
 	"time"
@@ -83,8 +82,12 @@ func (c *Controller) workerPass(changes []drivechange.File) {
 		jobs = append(jobs, c.generateJobsDefinition(path, eventTime, libs)...)
 	}
 	c.logger.Debugf("[Plex] created %d scan jobs", len(jobs))
-	// Start or schedule the jobs (TODO)
-	fmt.Printf("%+v\n", jobs)
+	// Start or schedule the jobs
+	c.workers.Add(len(jobs))
+	for jobIndex, job := range jobs {
+		c.logger.Debugf("[Plex] starting job #%d: %s, %s, %v", jobIndex+1, job.LibName, job.ScanPath, job.ScanAt)
+		go c.jobExecutor(job)
+	}
 }
 
 func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanList map[string]time.Time) {
