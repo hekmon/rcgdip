@@ -1,6 +1,7 @@
 package plex
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 
 const (
 	waitTimeSafetyMargin = time.Second
+	stateJobsTotalKey    = "jobs_len"
+	stateJobsPrefix      = "jobs_#"
 )
 
 type jobElement struct {
@@ -37,7 +40,7 @@ libs:
 	}
 	// Compute the time when we will be able to start the scan (+ a safety marging)
 	waitUntil := eventTime.Add(c.interval + waitTimeSafetyMargin)
-	// Create the jobs definition
+	// Create the jobs definitions
 	jobs = make([]jobElement, len(validLibs))
 	index := 0
 	for libKey, libName := range validLibs {
@@ -68,7 +71,89 @@ func (c *Controller) jobExecutor(job jobElement) {
 	case <-c.ctx.Done():
 		// we should stop, let's save the job in our state
 		timer.Stop()
-		c.logger.Infof("[Plex] scan job for '%s' on '%s' is not yet launched, saving into state...", job.LibName, job.ScanPath)
-		// TODO
+		c.logger.Infof("[Plex] scan job for '%s' on '%s' is not yet launched, saving for resume later...", job.LibName, job.ScanPath)
+		c.jobsAccess.Lock()
+		c.jobs = append(c.jobs, job)
+		c.jobsAccess.Unlock()
 	}
+}
+
+func (c *Controller) restoreJobs() {
+	var (
+		err               error
+		found             bool
+		totalJobsSaved    int
+		totalJobsRestored int
+		jobKey            string
+		restoredJob       jobElement
+	)
+	// Get number of saved jobs
+	if found, err = c.state.Get(stateJobsTotalKey, &totalJobsSaved); err != nil {
+		c.logger.Errorf("[Plex] failed to load the total number of saved job(s), the db might have become inconsistent: %s",
+			err)
+		return
+	}
+	if !found {
+		c.logger.Debugf("[Plex] saved jobs index not found in db, assuming no job need resuming")
+		return
+	}
+	c.jobs = make([]jobElement, 0, totalJobsSaved)
+	// Restore each job
+	defer c.jobsAccess.Unlock()
+	c.jobsAccess.Lock()
+	for i := 0; i < totalJobsSaved; i++ {
+		jobKey = jobsGenerateKey(i)
+		// Get the job
+		if found, err = c.state.Get(jobKey, &restoredJob); err != nil {
+			c.logger.Errorf("[Plex] failed to restore the job #%d: %s", i, err)
+			continue
+		}
+		if !found {
+			c.logger.Errorf("[Plex] failed to restore the job #%d: not found within db (is db inconsistent ?)", i)
+			continue
+		}
+		// Add it to the list of restored jobs
+		c.jobs = append(c.jobs, restoredJob)
+		totalJobsRestored++
+		// Remove it from the db
+		if err = c.state.Delete(jobKey); err != nil {
+			c.logger.Errorf("[Plex] failed to delete within the db the restored job #%d, the db might have become inconsistent: %s", i, err)
+		}
+	}
+	// Clean the number of saved jobs from db
+	if err = c.state.Delete(stateJobsTotalKey); err != nil {
+		c.logger.Errorf("[Plex] failed to delete total number of saved jobs within the db, it might have become inconsistent: %s", err)
+	}
+	// Done
+	if totalJobsRestored > 0 {
+		c.logger.Infof("[Plex] restored %d previously planned scan job(s)", totalJobsRestored)
+	} else {
+		c.logger.Debug("[Plex] no previously planned scan job found/restored")
+	}
+}
+
+func (c *Controller) saveJobs() {
+	var (
+		err          error
+		totalWritten int
+	)
+	// Save all jobs
+	c.jobsAccess.Lock()
+	for index, job := range c.jobs {
+		if err = c.state.Set(jobsGenerateKey(totalWritten), job); err != nil {
+			c.logger.Errorf("[Plex] failed to save the unstarted job #%d, job will be lost: %s @ %s", index, job.LibName, job.ScanPath)
+		} else {
+			totalWritten++
+		}
+	}
+	c.jobsAccess.Unlock()
+	// Save total
+	if err = c.state.Set(stateJobsTotalKey, totalWritten); err != nil {
+		c.logger.Errorf("[Plex] failed to save the total number of saved job(s), the db might have become inconsistent: %s",
+			err)
+	}
+}
+
+func jobsGenerateKey(jobIndex int) string {
+	return fmt.Sprintf("%s%d", stateJobsPrefix, jobIndex)
 }

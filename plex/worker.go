@@ -13,6 +13,15 @@ func (c *Controller) triggerWorker(input <-chan []drivechange.File) {
 	defer c.workers.Done()
 	// Testing the plex connection
 	c.testPlexConnection()
+	// Launch all restored jobs (if any)
+	c.jobsAccess.Lock()
+	c.workers.Add(len(c.jobs))
+	for jobIndex, job := range c.jobs {
+		c.logger.Debugf("[Plex] starting restored job #%d: %s, %s, %v", jobIndex+1, job.LibName, job.ScanPath, job.ScanAt)
+		go c.jobExecutor(job)
+	}
+	c.jobs = nil
+	c.jobsAccess.Unlock()
 	// Wake up for work or stop
 	c.logger.Debug("[Plex] waiting for input")
 	for {
@@ -20,7 +29,7 @@ func (c *Controller) triggerWorker(input <-chan []drivechange.File) {
 		case batch := <-input:
 			c.workerPass(batch)
 		case <-c.ctx.Done():
-			c.logger.Debug("[Drive] stopping watcher as main context has been cancelled")
+			c.logger.Debug("[Plex] stopping worker as main context has been cancelled")
 			return
 		}
 	}

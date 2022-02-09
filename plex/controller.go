@@ -46,7 +46,9 @@ type Controller struct {
 	interval   time.Duration
 	mountPoint string
 	// Storage
-	state Storage
+	state      Storage
+	jobs       []jobElement
+	jobsAccess sync.Mutex
 	// Controllers
 	logger *hllogger.HlLogger
 	plex   *plexapi.Client
@@ -94,6 +96,8 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		err = fmt.Errorf("failed to instanciate the Plex API client: %w", err)
 		return
 	}
+	// Restore jobs if needed
+	c.restoreJobs()
 	// Workers
 	c.fullStop = make(chan struct{})
 	go c.stopper()
@@ -108,9 +112,12 @@ func (c *Controller) stopper() {
 	// Wait for workers to correctly stop
 	c.logger.Debug("[Plex] waiting for all workers to stop...")
 	c.workers.Wait()
+	// Save unstarted jobs if any
+	c.logger.Debug("[Plex] saving unstarted jobs to state...")
+	c.saveJobs()
 	// Mark full stop
 	close(c.fullStop)
-	c.logger.Debug("[Plex] fully stopped")
+	c.logger.Info("[Plex] fully stopped")
 }
 
 func (c *Controller) WaitUntilFullStop() {

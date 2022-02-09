@@ -100,7 +100,7 @@ func (c *Controller) stopper() {
 	c.workers.Wait()
 	// Mark full stop
 	close(c.fullStop)
-	c.logger.Debug("[Drive] fully stopped")
+	c.logger.Info("[Drive] fully stopped")
 }
 
 func (c *Controller) WaitUntilFullStop() {
