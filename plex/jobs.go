@@ -7,6 +7,10 @@ import (
 	plexapi "github.com/hekmon/rcgdip/plex/api"
 )
 
+const (
+	waitTimeSafetyMargin = time.Second
+)
+
 type jobElement struct {
 	LibKey   string
 	LibName  string
@@ -31,8 +35,8 @@ libs:
 	if len(validLibs) == 0 {
 		return
 	}
-	// Compute the time when we will be able to start the scan
-	waitUntil := eventTime.Add(c.interval)
+	// Compute the time when we will be able to start the scan (+ a safety marging)
+	waitUntil := eventTime.Add(c.interval + waitTimeSafetyMargin)
 	// Create the jobs definition
 	jobs = make([]jobElement, len(validLibs))
 	index := 0
