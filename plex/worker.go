@@ -90,7 +90,7 @@ func (c *Controller) workerPass(changes []drivechange.File) {
 	for path, eventTime := range scanList {
 		jobs = append(jobs, c.generateJobsDefinition(path, eventTime, libs)...)
 	}
-	c.logger.Debugf("[Plex] created %d scan jobs", len(jobs))
+	c.logger.Debugf("[Plex] created %d scan job(s)", len(jobs))
 	// Optimize scan jobs (remove child paths if parents path are also scheduled within the same library)
 	jobs = c.consolidateAndOptimize(jobs)
 	// Start or schedule the jobs
