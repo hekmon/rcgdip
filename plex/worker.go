@@ -86,11 +86,13 @@ func (c *Controller) workerPass(changes []drivechange.File) {
 		return
 	}
 	// Create scan jobs for each path if we can
-	jobs := make([]jobElement, 0, len(scanList)*len(libs))
+	jobs := make([]*jobElement, 0, len(scanList)*len(libs))
 	for path, eventTime := range scanList {
 		jobs = append(jobs, c.generateJobsDefinition(path, eventTime, libs)...)
 	}
 	c.logger.Debugf("[Plex] created %d scan jobs", len(jobs))
+	// Optimize scan jobs (remove child paths if parents path are also scheduled within the same library)
+	jobs = c.consolidateAndOptimize(jobs)
 	// Start or schedule the jobs
 	c.workers.Add(len(jobs))
 	for jobIndex, job := range jobs {
@@ -145,25 +147,48 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 			}
 		}
 	}
+	return
+}
+
+func (c *Controller) consolidateAndOptimize(jobs []*jobElement) (consolidatedJobs []*jobElement) {
 	// Detect if some paths are included within parents scheduled for scan
-	for potentialParentPath, potentialParentTime := range scanList {
-		for potentialChildPath, potentialChildTime := range scanList {
-			if potentialParentPath == potentialChildPath {
-				// do not compare against self
+	indexesToRemove := make(map[int]struct{}, len(jobs))
+	for potentialParentIndex, potentialParent := range jobs {
+		for potentialChildIndex, potentialChild := range jobs {
+			// do not compare against self
+			if potentialParentIndex == potentialChildIndex {
 				continue
 			}
-			if strings.HasPrefix(potentialChildPath, potentialParentPath) {
-				c.logger.Debugf("[Plex] path '%s' remove from scan list: its parent '%s' is already scheduled for scan",
-					potentialChildPath, potentialParentPath)
-				delete(scanList, potentialChildPath)
+			// only consolidate within the same library
+			if potentialParent.LibKey != potentialChild.LibKey {
+				continue
+			}
+			// check path to seek optimisation
+			if strings.HasPrefix(potentialChild.ScanPath, potentialParent.ScanPath) {
+				c.logger.Debugf("[Plex] library '%s': path '%s' remove from scan list: its parent '%s' is already scheduled for scan",
+					potentialChild.LibName, potentialChild.ScanPath, potentialParent.ScanPath)
+				indexesToRemove[potentialChildIndex] = struct{}{}
 				// If child was to be scanned later than parent, delay the parent to allow both of them to appear on the mount
-				if potentialChildTime.After(potentialParentTime) {
-					c.logger.Debugf("[Plex] delaying the scan of the parent '%s' (event at %v) because the removed child path (%s) to be scan was scheduled later (event at %v)",
-						potentialParentPath, potentialParentTime, potentialChildPath, potentialChildTime)
-					scanList[potentialParentPath] = potentialChildTime
+				if potentialChild.ScanAt.After(potentialParent.ScanAt) {
+					c.logger.Debugf("[Plex] library '%s': delaying the scan of the parent '%s' (event at %v) because the removed child path (%s) to be scan was scheduled later (event at %v)",
+						potentialChild.LibName, potentialParent.ScanPath, potentialParent.ScanAt, potentialChild.ScanPath, potentialChild.ScanAt)
+					potentialParent.ScanAt = potentialChild.ScanAt
 				}
 			}
 		}
+	}
+	// Now that we know the indexes to remove, build the final list
+	var (
+		consolidatedJobsCounter int
+		found                   bool
+	)
+	consolidatedJobs = make([]*jobElement, len(jobs)-len(indexesToRemove))
+	for jobIndex, job := range jobs {
+		if _, found = indexesToRemove[jobIndex]; found {
+			continue
+		}
+		consolidatedJobs[consolidatedJobsCounter] = job
+		consolidatedJobsCounter++
 	}
 	return
 }

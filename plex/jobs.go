@@ -21,7 +21,7 @@ type jobElement struct {
 	ScanPath string
 }
 
-func (c *Controller) generateJobsDefinition(path string, eventTime time.Time, libs []plexapi.Library) (jobs []jobElement) {
+func (c *Controller) generateJobsDefinition(path string, eventTime time.Time, libs []plexapi.Library) (jobs []*jobElement) {
 	// Find libraries that contains this path
 	validLibs := make(map[string]string, len(libs))
 libs:
@@ -41,10 +41,10 @@ libs:
 	// Compute the time when we will be able to start the scan (+ a safety marging)
 	waitUntil := eventTime.Add(c.interval + waitTimeSafetyMargin)
 	// Create the jobs definitions
-	jobs = make([]jobElement, len(validLibs))
+	jobs = make([]*jobElement, len(validLibs))
 	index := 0
 	for libKey, libName := range validLibs {
-		jobs[index] = jobElement{
+		jobs[index] = &jobElement{
 			LibKey:   libKey,
 			LibName:  libName,
 			ScanAt:   waitUntil,
@@ -55,7 +55,7 @@ libs:
 	return
 }
 
-func (c *Controller) jobExecutor(job jobElement) {
+func (c *Controller) jobExecutor(job *jobElement) {
 	// A job executor is a goroutine started by the worker
 	defer c.workers.Done()
 	// Compute how long we should wait for the poll interval of the rclone mount point to be matched for sure
@@ -85,7 +85,7 @@ func (c *Controller) restoreJobs() {
 		totalJobsSaved    int
 		totalJobsRestored int
 		jobKey            string
-		restoredJob       jobElement
+		restoredJob       *jobElement
 	)
 	// Get number of saved jobs
 	if found, err = c.state.Get(stateJobsTotalKey, &totalJobsSaved); err != nil {
@@ -97,7 +97,7 @@ func (c *Controller) restoreJobs() {
 		c.logger.Debugf("[Plex] saved jobs index not found in db, assuming no job need resuming")
 		return
 	}
-	c.jobs = make([]jobElement, 0, totalJobsSaved)
+	c.jobs = make([]*jobElement, 0, totalJobsSaved)
 	// Restore each job
 	defer c.jobsAccess.Unlock()
 	c.jobsAccess.Lock()

@@ -47,7 +47,7 @@ type Controller struct {
 	mountPoint string
 	// Storage
 	state      Storage
-	jobs       []jobElement
+	jobs       []*jobElement
 	jobsAccess sync.Mutex
 	// Controllers
 	logger *hllogger.HlLogger
