@@ -45,6 +45,7 @@ type Controller struct {
 	ctx        context.Context
 	interval   time.Duration
 	mountPoint string
+	tz         *time.Location
 	// Storage
 	state      Storage
 	jobs       []*jobElement
@@ -96,6 +97,8 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		err = fmt.Errorf("failed to instanciate the Plex API client: %w", err)
 		return
 	}
+	// Get time location
+	c.tz = time.Now().Location()
 	// Restore jobs if needed
 	c.restoreJobs()
 	// Workers

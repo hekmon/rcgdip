@@ -39,7 +39,7 @@ libs:
 		return
 	}
 	// Compute the time when we will be able to start the scan (+ a safety marging)
-	waitUntil := eventTime.Add(c.interval + waitTimeSafetyMargin)
+	waitUntil := eventTime.Add(c.interval + waitTimeSafetyMargin).In(c.tz)
 	// Create the jobs definitions
 	jobs = make([]*jobElement, len(validLibs))
 	index := 0

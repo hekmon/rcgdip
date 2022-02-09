@@ -61,7 +61,7 @@ func (c *Controller) testPlexConnection() {
 		c.logger.Warningf("[Plex] found %d libraries based on %d locations but none are based on rclone mount point '%s': change events won't trigger any scan",
 			len(libs), nbPaths, c.mountPoint)
 	} else {
-		c.logger.Infof("[Plex] found %d libraries based on %d locations on which %d are based on rclone mountpoint '%s'",
+		c.logger.Infof("[Plex] found %d libraries based on %d locations on which %d are based on declared rclone mountpoint '%s'",
 			len(libs), nbPaths, nbCandidates, c.mountPoint)
 	}
 }
@@ -96,7 +96,7 @@ func (c *Controller) workerPass(changes []drivechange.File) {
 	// Start or schedule the jobs
 	c.workers.Add(len(jobs))
 	for jobIndex, job := range jobs {
-		c.logger.Debugf("[Plex] starting job #%d: %s, %s, %v", jobIndex+1, job.LibName, job.ScanPath, job.ScanAt)
+		c.logger.Debugf("[Plex] launching job #%d: scheduling scan of '%s' in '%s' for %v", jobIndex+1, job.ScanPath, job.LibName, job.ScanAt)
 		go c.jobExecutor(job)
 	}
 }
