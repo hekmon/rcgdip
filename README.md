@@ -149,7 +149,7 @@ sudo journalctl -f -u rcgdip@instanceName.service
 
 ## Things to consider
 
-3 values rclone values are importants to have rcgdip works as intended:
+3 rclone values are importants to have rcgdip work as intended:
 
 * `--attr-timeout` it is the time the FUSE mount is allowed to cache the informations before asking them again to rclone, keep the default unless you know what you are doing but it should lower than...
 * `--dir-cache-time` which is the time rclone keeps the metadata of each folder without reasking the backend to answers the FUSE requests when `--attr-timeout` is elapsed. Also keep default if you can.
