@@ -51,6 +51,7 @@ BindsTo=plexmediaserver.service
 [Service]
 Type=notify
 User=rcgdip
+WorkingDirectory=~
 EnvironmentFile=/etc/rclone/rcgdip
 ExecStart=/usr/local/bin/rcgdip
 ExecReload=/bin/kill -SIGHUP $MAINPID
@@ -83,6 +84,7 @@ BindsTo=plexmediaserver.service
 [Service]
 Type=notify
 User=rcgdip
+WorkingDirectory=~
 EnvironmentFile=/etc/rclone/rcgdip_%i
 ExecStart=/usr/local/bin/rcgdip -instance %i
 ExecReload=/bin/kill -SIGHUP $MAINPID
