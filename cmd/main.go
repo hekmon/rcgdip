@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -38,6 +39,21 @@ var (
 )
 
 func main() {
+	// Process flags
+	flagVersion := flag.Bool("version", false, "show version")
+	flagInstance := flag.String("instance", "", "define a custom instance for storage")
+	flag.Parse()
+	if *flagVersion {
+		fmt.Printf("%s v%s\n", appName, appVersion)
+		os.Exit(0)
+	}
+
+	// Get config
+	err := populateConfig()
+	if err != nil {
+		log.Fatal(1, fmt.Sprintf("[Main] invalid configuration: %s", err))
+	}
+
 	// Probe execution environment
 	_, systemdLaunched = sysd.GetInvocationID()
 
@@ -51,21 +67,6 @@ func main() {
 		LoggerFlags:           loggerFlags,
 		SystemdJournaldCompat: systemdLaunched,
 	})
-
-	// Process flags
-	flagVersion := flag.Bool("version", false, "show version")
-	flagInstance := flag.String("instance", "", "define a custom instance for storage")
-	flag.Parse()
-	if *flagVersion {
-		fmt.Printf("%s v%s\n", appName, appVersion)
-		os.Exit(0)
-	}
-
-	// Get config
-	err := populateConfig()
-	if err != nil {
-		logger.Fatalf(1, "[Main] invalid configuration: %s", err)
-	}
 
 	// Prepare clean stop
 	mainCtx, mainCtxCancel = context.WithCancel(context.Background())
