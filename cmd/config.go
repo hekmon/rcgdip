@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/hekmon/hllogger"
 	"github.com/rclone/rclone/vfs/vfscommon"
 )
 
@@ -17,6 +19,7 @@ const (
 	rcloneMountPathEnvName         = "RCGDIP_RCLONE_MOUNT_PATH"
 	plexURLEnvName                 = "RCGDIP_PLEX_URL"
 	plexTokenEnvName               = "RCGDIP_PLEX_TOKEN"
+	logLevelEnvName                = "RCGDIP_LOGLEVEL"
 )
 
 var (
@@ -27,6 +30,7 @@ var (
 	rcloneMountPath         string
 	plexURL                 *url.URL
 	plexToken               string
+	logLevel                hllogger.LogLevel
 )
 
 func populateConfig() (err error) {
@@ -74,6 +78,21 @@ func populateConfig() (err error) {
 	// plex token
 	if plexToken = os.Getenv(plexTokenEnvName); plexToken == "" {
 		return fmt.Errorf("%s must be set", plexTokenEnvName)
+	}
+	// log level
+	switch strings.ToUpper(os.Getenv(logLevelEnvName)) {
+	case "FATAL":
+		logLevel = hllogger.Fatal
+	case "ERROR":
+		logLevel = hllogger.Error
+	case "WARNING":
+		logLevel = hllogger.Warning
+	case "INFO":
+		logLevel = hllogger.Info
+	case "DEBUG":
+		logLevel = hllogger.Debug
+	default:
+		logLevel = hllogger.Info
 	}
 	return
 }

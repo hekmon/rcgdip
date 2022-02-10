@@ -47,7 +47,7 @@ func main() {
 		loggerFlags = hllogger.Ltime | hllogger.Ldate
 	}
 	logger = hllogger.New(os.Stdout, &hllogger.Config{
-		LogLevel:              hllogger.Debug,
+		LogLevel:              logLevel,
 		LoggerFlags:           loggerFlags,
 		SystemdJournaldCompat: systemdLaunched,
 	})
