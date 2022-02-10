@@ -128,7 +128,7 @@ func (c *Controller) restoreJobs() {
 	if totalJobsRestored > 0 {
 		c.logger.Infof("[Plex] restored %d previously planned scan job(s)", totalJobsRestored)
 	} else {
-		c.logger.Debug("[Plex] no previously planned scan job found/restored")
+		c.logger.Debug("[Plex] no previously planned scan job(s) found/restored")
 	}
 }
 
