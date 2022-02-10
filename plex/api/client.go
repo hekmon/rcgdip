@@ -2,7 +2,6 @@ package api
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -63,7 +62,6 @@ func New(conf Config) (c *Client, err error) {
 		},
 		http: conf.CustomClient,
 	}
-	fmt.Println(c.defaultHeaders())
 	// Validate base URL
 	if conf.BaseURL == nil {
 		err = errors.New("base URL can not be nil")

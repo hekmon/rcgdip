@@ -16,7 +16,8 @@
 
 # Dev
 /rcgdip
-/cmd/devconfig.go
+/rcgdip_linux_amd64
+/cmd/devconfig.sh
 /output.log
 /*_state.json
 /rcgdip_storage*
