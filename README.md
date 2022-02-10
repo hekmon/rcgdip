@@ -24,9 +24,12 @@ While technically rcgdip can run anywhere, it is recommended to run it alongside
 
 ```bash
 sudo useradd --home-dir /var/lib/rcgdip --create-home --system --shell /usr/sbin/nologin rcgdip
-sudo chown rcgdip: /etc/rcgdip
+sudo chown rcgdip: /var/lib/rcgdip
 sudo chmod 750 /var/lib/rcgdip
-sudo cp ~/rcgdip_download_or_built /usr/local/bin/rcgdip # adapt source file from previous steps here
+sudo wget https://github.com/hekmon/rcgdip/releases/download/v0.1.0/rcgdip_linux_amd64 -O /usr/local/bin/rcgdip
+sudo chmod +x /usr/local/bin/rcgdip
+# adapt to the group of your rclone config file, here the rclone config file is owned (and readable) by the rclone group
+sudo usermod -a -G rclone rcgdip
 ```
 
 #### systemd service
@@ -52,7 +55,7 @@ BindsTo=plexmediaserver.service
 Type=notify
 User=rcgdip
 WorkingDirectory=~
-EnvironmentFile=/etc/rclone/rcgdip
+EnvironmentFile=/etc/default/rcgdip
 ExecStart=/usr/local/bin/rcgdip
 ExecReload=/bin/kill -SIGHUP $MAINPID
 Restart=on-failure
@@ -60,6 +63,7 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 EOF
+sudo systemctl daemon-reload
 ```
 
 If your rclone mount is started with systemd too (for example using [rclonemount](https://github.com/hekmon/rclonemount)), add it to `After=` and `BindsTo=` as well. Eg:
@@ -85,7 +89,7 @@ BindsTo=plexmediaserver.service
 Type=notify
 User=rcgdip
 WorkingDirectory=~
-EnvironmentFile=/etc/rclone/rcgdip_%i
+EnvironmentFile=/etc/default/rcgdip_%i
 ExecStart=/usr/local/bin/rcgdip -instance %i
 ExecReload=/bin/kill -SIGHUP $MAINPID
 Restart=on-failure
@@ -93,6 +97,7 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 EOF
+sudo systemctl daemon-reload
 ```
 
 ### Configure rcgdip
