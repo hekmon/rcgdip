@@ -102,6 +102,8 @@ sudo systemctl daemon-reload
 
 ### Configure rcgdip
 
+Check the [plex documentation](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/) to recover your Plex token.
+
 #### Mono instance
 
 Adapt the values to yours.
@@ -155,7 +157,7 @@ sudo journalctl -f -u rcgdip@instanceName.service
 * `--dir-cache-time` which is the time rclone keeps the metadata of each folder without reasking the backend to answers the FUSE requests when `--attr-timeout` is elapsed. Also keep default if you can.
 * `--poll-interval` the frequency used by rclone to ask the backend for changes, it allows for targetted updates of the dir cache even if it is still within the `--dir-cache-time` window. It should be lower than `--dir-cache-time`. Default value is fine here too.
 
-rcgdip bases its prediction on the `--poll-interval` using the same default as rclone, if you customize the rclone `--poll-interval` for your rclone mount remeber to set the exact same value in `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` as well as rcgdip will wait this interval between the change event timestamp and the plex scan in order to be sure the local rclone mount had the time to discover the new file(s).
+rcgdip bases its prediction on the `--poll-interval` using the same default as rclone, if you customize the rclone `--poll-interval` for your rclone mount remember to set the exact same value in `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` as well as rcgdip will wait this interval between the change event timestamp and the plex scan in order to be sure the local rclone mount had the time to discover the new file(s).
 
 ## Known issues
 
