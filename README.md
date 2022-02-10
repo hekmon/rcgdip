@@ -1,6 +1,6 @@
 # rcgdip
 
-RClone GDrive inotify for Plex is a rclone companion for your plex server using a rclone mount on Google Drive. It will monitor changes on GDrive and launch targeted scan on your matching Plex libraries to automatically discover new files.
+RClone GDrive inotify for Plex is a rclone companion for your plex server using a rclone mount on Google Drive. It will monitor changes on GDrive and launch targeted scans on your matching Plex libraries to automatically discover new files.
 
 ## Installation
 
@@ -163,8 +163,9 @@ rcgdip bases its prediction on the `--poll-interval` using the same default as r
 
 ### Deletion events
 
-It seems that while `--poll-interval` works very well for new files and file changes but it does not work for deleted files (it is actually tricky to support as you have to build and maintain your own index locally, which rcgdip does). It means that a new file will be seen by your rclone mount fairly quickly (respecting the `--poll-interval`) but deleted files will only disappears locally when rclone dir cache is expired (the `--dir-cache-time` flag). Because rcgdip waits for `--poll-interval` by default before launching a scan, a deleted event will trigger scan while the local rclone mount still sees it.
-If this is an issue for you, please set the `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` to the `--dir-cache-time` value. New files will appears for an extra delay but deleted files will be correctly be handled.
+It seems that while `--poll-interval` works very well for new files and file changes but it does not work for deleted files (it is actually tricky to support as you have to build and maintain your own index locally, which rcgdip does). It means that a new file will be seen by your rclone mount fairly quickly (respecting the `--poll-interval`) but deleted files will only disappears locally when rclone dir cache is expired (the `--dir-cache-time` flag).
+
+Because rcgdip waits for `--poll-interval` by default before launching a scan, a deleted event will trigger scan while the local rclone mount still sees it. If this is an issue for you, please set the `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` to the `--dir-cache-time` value. New files will appears with an extra delay but deleted files will be correctly be handled.
 
 ## Sponsoring
 
