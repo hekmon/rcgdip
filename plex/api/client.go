@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+
+	"github.com/shirou/gopsutil/v3/host"
 )
 
 type Config struct {
@@ -48,8 +50,8 @@ func New(conf Config) (c *Client, err error) {
 		// https://github.com/Arcanemagus/plex-api/wiki/Plex-Web-API-Overview#request-headers
 		defaultHeaders: func() http.Header {
 			return http.Header{
-				"X-Plex-Platform": []string{runtime.GOOS},
-				// "X-Plex-Platform-Version":  []string{},
+				"X-Plex-Platform":          []string{runtime.GOOS},
+				"X-Plex-Platform-Version":  []string{getOSVersion()},
 				"X-Plex-Provides":          []string{"controller"},
 				"X-Plex-Client-Identifier": []string{conf.ClientID},
 				"X-Plex-Product":           []string{conf.ProductName},
@@ -60,6 +62,7 @@ func New(conf Config) (c *Client, err error) {
 		},
 		http: conf.CustomClient,
 	}
+	fmt.Println(c.defaultHeaders())
 	// Validate base URL
 	if c.baseURL, err = url.Parse(conf.BaseURL); err != nil {
 		err = fmt.Errorf("failed to parse plex base URL: %w", err)
@@ -67,6 +70,14 @@ func New(conf Config) (c *Client, err error) {
 	}
 	if len(c.baseURL.Path) > 0 && c.baseURL.Path[len(c.baseURL.Path)-1] == '/' {
 		c.baseURL.Path = c.baseURL.Path[:len(c.baseURL.Path)-1]
+	}
+	return
+}
+
+func getOSVersion() (OSversion string) {
+	OSversion, _, version, err := host.PlatformInformation()
+	if err == nil && OSversion != "" && version != "" {
+		OSversion += " " + version
 	}
 	return
 }

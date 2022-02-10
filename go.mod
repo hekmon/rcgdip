@@ -9,6 +9,7 @@ require (
 	github.com/iguanesolutions/go-systemd/v5 v5.1.0
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
 	github.com/rclone/rclone v1.57.0
+	github.com/shirou/gopsutil/v3 v3.21.8
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
 	google.golang.org/api v0.65.0
@@ -40,7 +41,6 @@ require (
 	github.com/prometheus/common v0.30.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/rfjakob/eme v1.1.2 // indirect
-	github.com/shirou/gopsutil/v3 v3.21.8 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
