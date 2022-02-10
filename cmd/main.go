@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -21,7 +23,7 @@ import (
 var (
 	// Linking time
 	appName    = "rcgdip"
-	appVersion = "0.0.0"
+	appVersion = "0.1.0"
 	// Flags
 	systemdLaunched bool
 	// Controllers
@@ -50,6 +52,21 @@ func main() {
 		SystemdJournaldCompat: systemdLaunched,
 	})
 
+	// Process flags
+	flagVersion := flag.Bool("version", false, "show version")
+	flagInstance := flag.String("instance", "", "define a custom instance for storage")
+	flag.Parse()
+	if *flagVersion {
+		fmt.Printf("%s v%s\n", appName, appVersion)
+		os.Exit(0)
+	}
+
+	// Get config
+	err := populateConfig()
+	if err != nil {
+		logger.Fatalf(1, "[Main] invalid configuration: %s", err)
+	}
+
 	// Prepare clean stop
 	mainCtx, mainCtxCancel = context.WithCancel(context.Background())
 	mainStop = make(chan struct{})
@@ -57,10 +74,9 @@ func main() {
 	go stopper()
 
 	// Init storage
-	var err error
 	logger.Info("[Main] initializing the storage backend...")
 	if db, err = storage.New(storage.Config{
-		Instance: devinstance,
+		Instance: *flagInstance,
 		Logger:   logger,
 	}); err != nil {
 		logger.Fatalf(1, "[Main] failed to initialize storage: %s", err.Error())
@@ -74,11 +90,11 @@ func main() {
 	logger.Info("[Main] initializing the Google Drive watcher...")
 	if driveWatcher, err = gdrive.New(mainCtx, gdrive.Config{
 		RClone: rcsnooper.Config{
-			RCloneConfigPath: devrcloneconfigpath,
-			DriveBackendName: devdrivebackendname,
-			CryptBackendName: devcryptbackendname,
+			RCloneConfigPath: rcloneConfigPath,
+			DriveBackendName: rcloneDriveName,
+			CryptBackendName: rcloneCryptName,
 		},
-		PollInterval: devpollinterval,
+		PollInterval: rcloneDrivePollInterval,
 		Logger:       logger,
 		StateBackend: db.NewScoppedAccess("drive_state"),
 		IndexBackend: db.NewScoppedAccess("drive_index"),
@@ -96,8 +112,8 @@ func main() {
 	logger.Info("[Main] initializing the Plex Triggerer...")
 	if plexTriggerer, err = plex.New(mainCtx, plex.Config{
 		Input:          changesChan,
-		PollInterval:   devpollinterval,
-		MountPoint:     devmountpoint,
+		PollInterval:   rcloneDrivePollInterval,
+		MountPoint:     rcloneMountPath,
 		PlexURL:        plexURL,
 		PlexToken:      plexToken,
 		ProductName:    appName,

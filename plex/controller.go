@@ -3,6 +3,7 @@ package plex
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"path"
 	"sync"
 	"time"
@@ -19,7 +20,7 @@ type Config struct {
 	PollInterval time.Duration
 	MountPoint   string
 	// Plex API config
-	PlexURL        string
+	PlexURL        *url.URL
 	PlexToken      string
 	ProductName    string
 	ProductVersion string

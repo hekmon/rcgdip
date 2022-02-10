@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,7 +13,7 @@ import (
 
 type Config struct {
 	// Base config
-	BaseURL string
+	BaseURL *url.URL
 	Token   string
 	// Advanced config
 	ProductName    string // Plex application name, eg Laika, Plex Media Server, Media Link
@@ -64,10 +65,11 @@ func New(conf Config) (c *Client, err error) {
 	}
 	fmt.Println(c.defaultHeaders())
 	// Validate base URL
-	if c.baseURL, err = url.Parse(conf.BaseURL); err != nil {
-		err = fmt.Errorf("failed to parse plex base URL: %w", err)
+	if conf.BaseURL == nil {
+		err = errors.New("base URL can not be nil")
 		return
 	}
+	c.baseURL = conf.BaseURL
 	if len(c.baseURL.Path) > 0 && c.baseURL.Path[len(c.baseURL.Path)-1] == '/' {
 		c.baseURL.Path = c.baseURL.Path[:len(c.baseURL.Path)-1]
 	}
