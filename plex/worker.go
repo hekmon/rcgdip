@@ -70,14 +70,16 @@ func (c *Controller) workerPass(changes []drivechange.File) {
 	c.logger.Debugf("[Plex] received a batch of %d change(s)", len(changes))
 	// Build uniq fully qualified folder paths to scan
 	scanList := c.extractBasePathsToScan(changes)
-	if c.logger.IsInfoShown() {
+	if c.logger.IsDebugShown() {
 		paths := make([]string, len(scanList))
 		index := 0
 		for path := range scanList {
 			paths[index] = path
 			index++
 		}
-		c.logger.Infof("[Plex] the following %d path(s) need scanning: %s", len(paths), strings.Join(paths, ", "))
+		if len(paths) > 0 {
+			c.logger.Debugf("[Plex] the following %d path(s) need scanning: %s", len(paths), strings.Join(paths, ", "))
+		}
 	}
 	// Get plex libs
 	libs, _, err := c.plex.GetLibraries(c.ctx)
@@ -117,7 +119,7 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 		for _, changePath := range change.Paths {
 			// Do not process folders not deleted
 			if change.Folder && !change.Deleted {
-				c.logger.Debugf("[Plex] skipping folder change not being deletion: %s", changePath)
+				c.logger.Infof("[Plex] skipping folder change not being deletion: %s", changePath)
 				continue
 			}
 			// Schedule scan for parent folder
@@ -125,9 +127,9 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 			if alreadyScheduledPathTime, found = scanList[parent]; !found {
 				scanList[parent] = change.Event
 				// Debug log
-				if c.logger.IsDebugShown() {
+				if c.logger.IsInfoShown() {
 					if change.Folder { // and deleted ofc
-						c.logger.Debugf("[Plex] folder '%s' deleted, adding its parent to scan list: %s", changePath, parent)
+						c.logger.Infof("[Plex] folder '%s' deleted, adding its local parent to scan list: %s", changePath, parent)
 					} else {
 						var action string
 						if change.Deleted {
@@ -135,7 +137,7 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 						} else {
 							action = "created or changed"
 						}
-						c.logger.Debugf("[Plex] file '%s' %s, adding its parent to scan list: %s", changePath, action, parent)
+						c.logger.Infof("[Plex] file '%s' %s, adding its local parent to scan list: %s", changePath, action, parent)
 					}
 				}
 			} else if alreadyScheduledPathTime.Before(change.Event) {

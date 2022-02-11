@@ -67,6 +67,9 @@ func main() {
 		LoggerFlags:           loggerFlags,
 		SystemdJournaldCompat: systemdLaunched,
 	})
+	if systemdLaunched {
+		logger.Debug("[Main] systemd integration activated")
+	}
 
 	// Prepare clean stop
 	mainCtx, mainCtxCancel = context.WithCancel(context.Background())
@@ -130,7 +133,7 @@ func main() {
 	logger.Info("[Main] Plex Triggerer started")
 
 	// We are ready
-	if err := sysdnotify.Ready(); err != nil {
+	if err = sysdnotify.Ready(); err != nil {
 		logger.Errorf("[Main] can't send systemd ready notification: %v", err)
 	}
 	<-mainStop

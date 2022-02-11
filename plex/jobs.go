@@ -29,7 +29,7 @@ libs:
 		for _, location := range lib.Locations {
 			if strings.HasPrefix(path, location) {
 				validLibs[lib.Key] = lib.Title
-				c.logger.Debugf("[Plex] library '%s' has a location containing '%s' which needs (re)scan: adding to job creation list",
+				c.logger.Infof("[Plex] library '%s' has a location containing '%s' which needs (re)scan: adding to job creation list",
 					lib.Title, path)
 				continue libs
 			}
@@ -64,9 +64,9 @@ func (c *Controller) jobExecutor(job *jobElement) {
 	case <-timer.C:
 		// Time's up let's scan this lib/path
 		if _, err := c.plex.ScanLibrary(c.ctx, job.LibKey, job.ScanPath); err != nil {
-			c.logger.Errorf("[Plex] failed to start partial library scan for '%s' on path '%s': %s", job.LibName, job.ScanPath, err)
+			c.logger.Errorf("[Plex] failed to start targeted library scan for '%s' on path '%s': %s", job.LibName, job.ScanPath, err)
 		} else {
-			c.logger.Infof("[Plex] successfully launched a partial scan for '%s' on path '%s'", job.LibName, job.ScanPath)
+			c.logger.Infof("[Plex] successfully launched a targeted scan for '%s' on path '%s'", job.LibName, job.ScanPath)
 		}
 	case <-c.ctx.Done():
 		// we should stop, let's save the job in our state
