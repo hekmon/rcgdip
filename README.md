@@ -153,6 +153,8 @@ sudo journalctl -f -u rcgdip@instanceName.service
 
 ## Things to consider
 
+### rclone mount config values
+
 3 rclone values are importants to have rcgdip work as intended:
 
 * `--attr-timeout` it is the time the FUSE mount is allowed to cache the informations before asking them again to rclone, keep the default unless you know what you are doing but it should lower than...
@@ -160,6 +162,10 @@ sudo journalctl -f -u rcgdip@instanceName.service
 * `--poll-interval` the frequency used by rclone to ask the backend for changes, it allows for targetted updates of the dir cache even if it is still within the `--dir-cache-time` window. It should be lower than `--dir-cache-time`. Default value is fine here too.
 
 rcgdip bases its prediction on the `--poll-interval` using the same default as rclone, if you customize the rclone `--poll-interval` for your rclone mount remember to set the exact same value in `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` as well as rcgdip will wait this interval between the change event timestamp and the plex scan in order to be sure the local rclone mount had the time to discover the new file(s).
+
+### rclone version
+
+rcgdip is built with rclone parts directly so to avoid any unexpected behaviors you should always ensure your rclone mount is using the same version of rclone as rcgdip. RClone version used by rcgdip is always mentioned on each [release](https://github.com/hekmon/rcgdip/releases) notes.
 
 ## Known issues
 
