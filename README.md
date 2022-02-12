@@ -19,8 +19,8 @@ It supports (from your rclone config file):
     - [Configure your system](#configure-your-system)
       - [Execution environment](#execution-environment)
       - [systemd service](#systemd-service)
-        - [mono instance](#mono-instance)
-        - [multi instances](#multi-instances)
+        - [Mono instance](#mono-instance)
+        - [Multi instances](#multi-instances)
     - [Configure rcgdip](#configure-rcgdip)
       - [Mono instance](#mono-instance-1)
       - [Multi instances](#multi-instances-1)
@@ -74,7 +74,7 @@ After=network-online.target plexmediaserver.service rclonemount@<yourinstance>.s
 BindsTo=plexmediaserver.service rclonemount@<yourinstance>.service
 ```
 
-##### mono instance
+##### Mono instance
 
 ```bash
 cat <<EOF | sudo tee /etc/systemd/system/rcgdip.service
@@ -99,7 +99,7 @@ EOF
 sudo systemctl daemon-reload
 ```
 
-##### multi instances
+##### Multi instances
 
 Optional. If you intend to run multiples instances.
 
