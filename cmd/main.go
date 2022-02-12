@@ -71,6 +71,11 @@ func main() {
 		logger.Debug("[Main] systemd integration activated")
 	}
 
+	// Debug output of the conf
+	if logger.IsDebugShown() {
+		debugConf()
+	}
+
 	// Prepare clean stop
 	mainCtx, mainCtxCancel = context.WithCancel(context.Background())
 	mainStop = make(chan struct{})

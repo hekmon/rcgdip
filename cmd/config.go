@@ -96,3 +96,13 @@ func populateConfig() (err error) {
 	}
 	return
 }
+
+func debugConf() {
+	logger.Debugf("[Main] %s: %s", rcloneConfigPathEnvName, rcloneConfigPath)
+	logger.Debugf("[Main] %s: %s", rcloneDriveBackendNameEnvName, rcloneDriveName)
+	logger.Debugf("[Main] %s: %v", rcloneDrivePollIntervalEnvName, rcloneDrivePollInterval)
+	logger.Debugf("[Main] %s: %v", rcloneCryptackendNameEnvName, rcloneCryptName)
+	logger.Debugf("[Main] %s: %v", rcloneMountPathEnvName, rcloneMountPath)
+	logger.Debugf("[Main] %s: %v", plexURLEnvName, plexURL.String())
+	logger.Debugf("[Main] %s: <redacted>", plexTokenEnvName)
+}
