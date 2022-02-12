@@ -24,7 +24,7 @@ import (
 var (
 	// Linking time
 	appName    = "rcgdip"
-	appVersion = "0.1.0"
+	appVersion = "0.1.1"
 	// Flags
 	systemdLaunched bool
 	// Controllers
