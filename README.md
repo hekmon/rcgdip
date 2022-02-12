@@ -11,6 +11,30 @@ It supports (from your rclone config file):
 * [x] OAuth2 token
 * [ ] Service Account (planned)
 
+- [rcgdip](#rcgdip)
+  - [Installation](#installation)
+    - [Get the software](#get-the-software)
+      - [From official releases](#from-official-releases)
+      - [From source](#from-source)
+    - [Configure your system](#configure-your-system)
+      - [Execution environment](#execution-environment)
+      - [systemd service](#systemd-service)
+        - [mono instance](#mono-instance)
+        - [multi instances](#multi-instances)
+    - [Configure rcgdip](#configure-rcgdip)
+      - [Mono instance](#mono-instance-1)
+      - [Multi instances](#multi-instances-1)
+    - [Start rcgdip](#start-rcgdip)
+      - [Mono instance](#mono-instance-2)
+      - [Multi instances](#multi-instances-2)
+  - [Things to consider](#things-to-consider)
+    - [rclone mount config values](#rclone-mount-config-values)
+    - [rclone version](#rclone-version)
+    - [crypt backend](#crypt-backend)
+  - [Known issues](#known-issues)
+    - [Deletion events](#deletion-events)
+  - [Sponsoring](#sponsoring)
+
 ## Installation
 
 ### Get the software
