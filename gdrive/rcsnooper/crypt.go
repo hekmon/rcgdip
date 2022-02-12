@@ -24,8 +24,8 @@ func (c *Controller) initCrypt(cryptBackend, driveBackend string) (err error) {
 	}
 	if cryptRemote, found := config.Get(rcloneConfigCryptRemoteKey); found {
 		if cryptRemote != driveBackend+":" {
-			return fmt.Errorf("the crypt backend '%s' should have the declared drive backend as remote: '%s:'",
-				cryptBackend, driveBackend)
+			return fmt.Errorf("the crypt backend '%s' should have as remote: '%s:' (currently: '%s')",
+				cryptBackend, driveBackend, cryptRemote)
 		}
 	} else {
 		return fmt.Errorf("the crypt backend '%s' does not have a remote declared", cryptBackend)
