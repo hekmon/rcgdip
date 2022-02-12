@@ -238,7 +238,7 @@ password = <redacted>
 password2 = <redacted>
 ```
 
-Notice the `root_folder_id = <ID_of_folderA>`. Note that it also applies for drive backend setup on team drives.
+Notice the `root_folder_id = <ID_of_folderA>` and the crypt backend setup at the root of the drive backend `remote = GDriveBackend:`. Note that it also applies for drive backend setup on team drives.
 
 ## Known issues
 
