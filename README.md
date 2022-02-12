@@ -238,7 +238,9 @@ password = <redacted>
 password2 = <redacted>
 ```
 
-Notice the `root_folder_id = <ID_of_folderA>` and the crypt backend setup at the root of the drive backend `remote = GDriveBackend:`. Note that it also applies for drive backend setup on team drives.
+Notice the `root_folder_id = <ID_of_folderA>` and the crypt backend setup at the root of the drive backend `remote = GDriveBackend:`. Note that it also applies for drive backends setup on team drives.
+
+If you do not wish to modify your original rclone file, you can copy it, modify it to match the example (after finding out the ID of `folderA`) and feed rcgdip with the clone and modified configuration.
 
 ## Known issues
 
