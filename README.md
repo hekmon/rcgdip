@@ -167,6 +167,55 @@ rcgdip bases its prediction on the `--poll-interval` using the same default as r
 
 rcgdip is built with rclone parts directly so to avoid any unexpected behaviors you should always ensure your rclone mount is using the same version of rclone as rcgdip. RClone version used by rcgdip is always mentioned on each [release](https://github.com/hekmon/rcgdip/releases) notes.
 
+### crypt backend
+
+The crypt backend must be setup at a root directory of a gdrive backend. For example:
+
+```ini
+[GDriveBackend]
+type = drive
+client_id = <redacted>
+client_secret = <redacted>
+scope = drive
+use_trash = false
+skip_gdocs = true
+upload_cutoff = 256M
+chunk_size = 256M
+acknowledge_abuse = true
+token = <redacted>
+
+[GDriveCryptBackend]
+type = crypt
+remote = GDriveBackend:folderA
+password = <redacted>
+password2 = <redacted>
+```
+
+Won't work as `GDriveCryptBackend` is not setup to the root folder of `GDriveBackend`: `remote = GDriveBackend:folderA`. If you need that kind of configuration, consider creating a drive backend with a root folder ID option and setup the crypt backend at its root. From the previous example:
+
+```ini
+[GDriveBackend]
+type = drive
+client_id = <redacted>
+client_secret = <redacted>
+scope = drive
+use_trash = false
+skip_gdocs = true
+upload_cutoff = 256M
+chunk_size = 256M
+acknowledge_abuse = true
+root_folder_id = <ID_of_folderA>
+token = <redacted>
+
+[GDriveCryptBackend]
+type = crypt
+remote = GDriveBackend:
+password = <redacted>
+password2 = <redacted>
+```
+
+Notice the `root_folder_id = <ID_of_folderA>`. Note that it also applies for drive backend setup on team drives.
+
 ## Known issues
 
 ### Deletion events
