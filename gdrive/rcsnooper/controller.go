@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rclone/rclone/backend/crypt"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/config"
 	"github.com/rclone/rclone/fs/config/configfile"
@@ -19,8 +18,8 @@ type Config struct {
 type Controller struct {
 	Conf Config
 	// rclone config
-	Drive       DriveBackend
-	CryptCipher *crypt.Cipher
+	Drive DriveBackend
+	Crypt CryptBackend
 }
 
 func New(conf Config) (rcsnooper *Controller, err error) {

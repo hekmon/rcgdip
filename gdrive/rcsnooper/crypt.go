@@ -1,16 +1,20 @@
 package rcsnooper
 
 import (
-	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/rclone/rclone/backend/crypt"
 	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config/configstruct"
 )
 
-const (
-	rcloneConfigCryptRemoteKey = "remote"
-)
+type CryptBackend struct {
+	Options    crypt.Options
+	RemoteName string
+	PathPrefix string
+	Cipher     *crypt.Cipher
+}
 
 func (c *Controller) initCrypt(cryptBackend, driveBackend string) (err error) {
 	// Get backend info from config
@@ -18,21 +22,28 @@ func (c *Controller) initCrypt(cryptBackend, driveBackend string) (err error) {
 	if err != nil {
 		return fmt.Errorf("can not get config for backend '%s': %w", cryptBackend, err)
 	}
-	// Checks
 	if fsInfo.Name != "crypt" {
-		return errors.New("the backend needs to be of type \"crypt\"")
+		return fmt.Errorf("backend '%s' should have \"crypt\" type, currently have: %s", cryptBackend, fsInfo.Name)
 	}
-	if cryptRemote, found := config.Get(rcloneConfigCryptRemoteKey); found {
-		if cryptRemote != driveBackend+":" {
-			return fmt.Errorf("the crypt backend '%s' should have as remote: '%s:' (currently: '%s')",
-				cryptBackend, driveBackend, cryptRemote)
-		}
-	} else {
-		return fmt.Errorf("the crypt backend '%s' does not have a remote declared", cryptBackend)
+	if err = configstruct.Set(config, &c.Crypt.Options); err != nil {
+		return fmt.Errorf("can not extract config of the backend '%s' as crypt options: %w", cryptBackend, err)
 	}
+	// Process remote
+	splittedRemote := strings.Split(c.Crypt.Options.Remote, ":")
+	if len(splittedRemote) != 2 {
+		return fmt.Errorf("crypt remote has invalid format, expecting '<backend>:[<optionnal/path>]': %s", c.Crypt.Options.Remote)
+	}
+	c.Crypt.RemoteName, c.Crypt.PathPrefix = splittedRemote[0], splittedRemote[1]
+	// Check the crypt remote is targeting the right drive backend
+	if c.Crypt.RemoteName != driveBackend {
+		return fmt.Errorf("the crypt backend '%s' should have as remote: '%s' (currently: '%s')",
+			cryptBackend, driveBackend, c.Crypt.RemoteName)
+	}
+	// Extract options
+
 	// Init the crypt cipher with config
-	if c.CryptCipher, err = crypt.NewCipher(config); err != nil {
-		c.CryptCipher = nil // just be safe, not our package here
+	if c.Crypt.Cipher, err = crypt.NewCipher(config); err != nil {
+		c.Crypt.Cipher = nil // just be safe, not our package here
 		return fmt.Errorf("failed to init rclone crypt cipher for backend '%s': %w", cryptBackend, err)
 	}
 	return

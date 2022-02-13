@@ -61,8 +61,8 @@ func (c *Controller) workerPass() {
 	for changeIndex, change := range changesFiles {
 		for pathIndex, path := range change.Paths {
 			// Handle encryption if needed
-			if c.rc.CryptCipher != nil {
-				decryptedPath, err := c.rc.CryptCipher.DecryptFileName(path)
+			if c.rc.Crypt.Cipher != nil {
+				decryptedPath, err := c.rc.Crypt.Cipher.DecryptFileName(path)
 				if err != nil {
 					c.logger.Errorf("[Drive] can not decrypt path '%s': %s", path, err)
 					continue
@@ -88,7 +88,7 @@ func (c *Controller) workerPass() {
 			}
 		}
 		// Save the change with decrypted paths if needed
-		if c.rc.CryptCipher != nil {
+		if c.rc.Crypt.Cipher != nil {
 			changesFiles[changeIndex] = change
 		}
 	}
