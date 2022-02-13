@@ -7,7 +7,7 @@ It supports (from your rclone config file):
 * [x] GDrive backends (obviously)
 * [x] Custom root folder ID
 * [x] Team Drives
-* [x] Crypt backend on top of your GDrive backend for path decryption
+* [x] Crypt backend on top of your GDrive backend for path decryption (root path only for now, custom path planned, see [notes](#crypt-backend))
 * [x] OAuth2 token
 * [ ] Service Account (planned)
 
