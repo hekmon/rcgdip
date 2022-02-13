@@ -62,7 +62,7 @@ func (c *Controller) workerPass() {
 	// Walk thru results to log and decrypt if needed (and remove paths not part of crypt prefix)
 	if c.rc.Crypt.Cipher != nil {
 		oldNum := len(changesFiles)
-		changesFiles = c.processChangeThruCrypt(changesFiles)
+		changesFiles = c.processChangesThruCrypt(changesFiles)
 		c.logger.Infof("[Drive] crypt process of changes removed %d paths, remaining: %d", oldNum-len(changesFiles), len(changesFiles))
 		if len(changesFiles) == 0 {
 			return
@@ -96,7 +96,7 @@ func (c *Controller) workerPass() {
 	c.logger.Debugf("[Drive] sent %d change(s)", len(changesFiles))
 }
 
-func (c *Controller) processChangeThruCrypt(changesFiles []drivechange.File) (validCryptChangesFiles []drivechange.File) {
+func (c *Controller) processChangesThruCrypt(changesFiles []drivechange.File) (validCryptChangesFiles []drivechange.File) {
 	// Prepare
 	var (
 		err           error
@@ -158,7 +158,7 @@ func (c *Controller) decryptPath(encryptedPath string, directory bool) (decrypte
 	// Decrypt
 	if directory {
 		if decryptedPath, err = c.rc.Crypt.Cipher.DecryptDirName(strippedPath); err != nil {
-			err = fmt.Errorf("failed to decrypt base path: %w", err)
+			err = fmt.Errorf("failed to decrypt dir path: %w", err)
 			return
 		}
 	} else {
