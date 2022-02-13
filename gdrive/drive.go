@@ -24,7 +24,7 @@ const (
 func (c *Controller) initDriveClient() (err error) {
 	// Prepare the OAuth2 configuration
 	oauthConf := &oauth2.Config{
-		Scopes:       []string{scopePrefix + c.rc.Drive.Scope},
+		Scopes:       []string{scopePrefix + c.rc.Drive.Options.Scope},
 		Endpoint:     google.Endpoint,
 		ClientID:     c.rc.Drive.ClientID,
 		ClientSecret: c.rc.Drive.ClientSecret,
@@ -40,8 +40,8 @@ func (c *Controller) initDriveClient() (err error) {
 func (c *Controller) getDriveChangesStartPage() (changesStartToken string, err error) {
 	// Get start page token
 	changesReq := c.driveClient.Changes.GetStartPageToken().Context(c.ctx)
-	if c.rc.Drive.TeamDrive != "" {
-		changesReq.SupportsAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
+	if c.rc.Drive.Options.TeamDriveID != "" {
+		changesReq.SupportsAllDrives(true).DriveId(c.rc.Drive.Options.TeamDriveID)
 	}
 	changesStart, err := changesReq.Do()
 	if err != nil {
@@ -56,8 +56,8 @@ func (c *Controller) getDriveListing(pageToken string) (files []*drive.File, nex
 	// Build Request
 	listReq := c.driveClient.Files.List()
 	listReq.Spaces("drive").Q("trashed=false")
-	if c.rc.Drive.TeamDrive != "" {
-		listReq.Corpora("drive").SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
+	if c.rc.Drive.Options.TeamDriveID != "" {
+		listReq.Corpora("drive").SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.rc.Drive.Options.TeamDriveID)
 	} else {
 		listReq.Corpora("user")
 	}
@@ -96,8 +96,8 @@ func (c *Controller) getDriveChanges(nextPageToken string) (changes []*drive.Cha
 	// Build Request
 	changesReq := c.driveClient.Changes.List(nextPageToken).Context(c.ctx)
 	changesReq.IncludeRemoved(true)
-	if c.rc.Drive.TeamDrive != "" {
-		changesReq.SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.rc.Drive.TeamDrive)
+	if c.rc.Drive.Options.TeamDriveID != "" {
+		changesReq.SupportsAllDrives(true).IncludeItemsFromAllDrives(true).DriveId(c.rc.Drive.Options.TeamDriveID)
 	}
 	if devMode {
 		changesReq.PageSize(1)
@@ -165,7 +165,7 @@ func (c *Controller) getDriveFileInfoWithID(fileID string) (recoveredID string, 
 	// Build request
 	fileRequest := c.driveClient.Files.Get(fileID).Context(c.ctx)
 	fileRequest.Fields(googleapi.Field("id"), googleapi.Field("name"), googleapi.Field("mimeType"), googleapi.Field("parents"))
-	if c.rc.Drive.TeamDrive != "" {
+	if c.rc.Drive.Options.TeamDriveID != "" {
 		fileRequest.SupportsAllDrives(true)
 	}
 	// Execute request

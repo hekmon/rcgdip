@@ -174,9 +174,9 @@ func (c *Controller) processChange(change *drive.Change) (fc *drivechange.File, 
 	validPaths := make([]string, 0, len(reversedPaths))
 	for _, reversedPath := range reversedPaths {
 		// If custom root folder id, search it and rewrite paths with new root
-		if c.rc.Drive.RootFolderID != "" {
+		if c.rc.Drive.Options.RootFolderID != "" {
 			// TODO: cutAt yield new driveFilePath
-			if !reversedPath.CutAt(c.rc.Drive.RootFolderID) {
+			if !reversedPath.CutAt(c.rc.Drive.Options.RootFolderID) {
 				c.logger.Debugf("[Drive] path '%s' does not contain the custom root folder id, discarding it", reversedPath.Reverse().Path())
 				continue // root folder id not found in this path, skipping
 			}

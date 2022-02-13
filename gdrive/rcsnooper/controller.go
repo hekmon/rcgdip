@@ -71,13 +71,13 @@ func (c *Controller) Summary() string {
 
 	b = append(b, fmt.Sprintf("config path: %s", c.Conf.RCloneConfigPath))
 	b = append(b, fmt.Sprintf("drive backend: %s", c.Conf.DriveBackendName))
-	if c.Drive.RootFolderID != "" {
-		b = append(b, fmt.Sprintf("custom root folderID: %s", c.Drive.RootFolderID))
+	if c.Drive.Options.RootFolderID != "" {
+		b = append(b, fmt.Sprintf("custom root folderID: %s", c.Drive.Options.RootFolderID))
 	} else {
 		b = append(b, "no custom root folderID")
 	}
-	if c.Drive.TeamDrive != "" {
-		b = append(b, fmt.Sprintf("team drive: %s", c.Drive.TeamDrive))
+	if c.Drive.Options.TeamDriveID != "" {
+		b = append(b, fmt.Sprintf("team drive: %s", c.Drive.Options.TeamDriveID))
 	} else {
 		b = append(b, "no team drive")
 	}

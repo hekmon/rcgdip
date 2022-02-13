@@ -91,10 +91,10 @@ func (c *Controller) resetState(remoteRootID string, remoteRootInfos *driveFileB
 		return
 	}
 	// Special case for team drives, the root folderID can have a different form
-	if c.rc.Drive.TeamDrive != "" && remoteRootID != c.rc.Drive.TeamDrive {
+	if c.rc.Drive.Options.TeamDriveID != "" && remoteRootID != c.rc.Drive.Options.TeamDriveID {
 		c.logger.Debugf("[Drive] retreived root folderID '%s' is different than supplied teamdrive ID '%s': cloning it within the index",
-			remoteRootID, c.rc.Drive.TeamDrive)
-		if err = c.index.Set(c.rc.Drive.TeamDrive, remoteRootInfos); err != nil {
+			remoteRootID, c.rc.Drive.Options.TeamDriveID)
+		if err = c.index.Set(c.rc.Drive.Options.TeamDriveID, remoteRootInfos); err != nil {
 			err = fmt.Errorf("failed to clone root folder file infos as teamdrive within the local index: %w", err)
 			return
 		}
