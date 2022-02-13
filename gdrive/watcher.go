@@ -142,7 +142,17 @@ func (c *Controller) decryptPath(encryptedPath string, directory bool) (decrypte
 	}
 	// Remove prefix
 	strippedPath := encryptedPath[len(c.rc.Crypt.PathPrefix):]
+	if len(strippedPath) == 0 {
+		// relative root
+		decryptedPath = "/"
+		return
+	}
 	if path.IsAbs(strippedPath) {
+		if len(strippedPath) == 1 {
+			// relative root
+			decryptedPath = strippedPath
+			return
+		}
 		strippedPath = strippedPath[1:]
 	}
 	// Decrypt
