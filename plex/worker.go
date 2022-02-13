@@ -123,7 +123,7 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 				continue
 			}
 			// Schedule scan for parent folder
-			parent := path.Clean(c.mountPoint + path.Dir(changePath))
+			parent := path.Join(c.mountPoint, path.Dir(changePath))
 			if alreadyScheduledPathTime, found = scanList[parent]; !found {
 				scanList[parent] = change.Event
 				// Debug log
