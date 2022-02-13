@@ -39,8 +39,6 @@ func (c *Controller) initCrypt(cryptBackend, driveBackend string) (err error) {
 		return fmt.Errorf("the crypt backend '%s' should have as remote: '%s' (currently: '%s')",
 			cryptBackend, driveBackend, c.Crypt.RemoteName)
 	}
-	// Extract options
-
 	// Init the crypt cipher with config
 	if c.Crypt.Cipher, err = crypt.NewCipher(config); err != nil {
 		c.Crypt.Cipher = nil // just be safe, not our package here
