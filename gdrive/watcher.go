@@ -62,7 +62,7 @@ func (c *Controller) workerPass() {
 	// Walk thru results to log and decrypt if needed (and remove paths not part of crypt prefix)
 	if c.rc.Crypt.Cipher != nil {
 		oldNum := len(changesFiles)
-		changesFiles = c.processCryptChanges(changesFiles)
+		changesFiles = c.processChangeThruCrypt(changesFiles)
 		c.logger.Infof("[Drive] crypt process of changes removed %d paths, remaining: %d", oldNum-len(changesFiles), len(changesFiles))
 		if len(changesFiles) == 0 {
 			return
@@ -96,7 +96,7 @@ func (c *Controller) workerPass() {
 	c.logger.Debugf("[Drive] sent %d change(s)", len(changesFiles))
 }
 
-func (c *Controller) processCryptChanges(changesFiles []drivechange.File) (validCryptChangesFiles []drivechange.File) {
+func (c *Controller) processChangeThruCrypt(changesFiles []drivechange.File) (validCryptChangesFiles []drivechange.File) {
 	// Prepare
 	var (
 		err           error
@@ -110,7 +110,7 @@ func (c *Controller) processCryptChanges(changesFiles []drivechange.File) (valid
 		validPaths = make([]string, 0, len(change.Paths))
 		for _, path := range change.Paths {
 			// decrypt what needs to be decrypted
-			if decryptedPath, partOfPrefix, err = c.handleCryptPath(path, change.Folder); err != nil {
+			if decryptedPath, partOfPrefix, err = c.decryptPath(path, change.Folder); err != nil {
 				c.logger.Errorf("[Drive] can not decrypt path '%s': %s", path, err)
 				continue
 			}
@@ -130,18 +130,18 @@ func (c *Controller) processCryptChanges(changesFiles []drivechange.File) (valid
 	return
 }
 
-func (c *Controller) handleCryptPath(path2process string, directory bool) (decryptedPath string, partOfPrefix bool, err error) {
+func (c *Controller) decryptPath(encryptedPath string, directory bool) (decryptedPath string, partOfPrefix bool, err error) {
 	// If no crypt backend
 	if c.rc.Crypt.Cipher == nil {
 		err = errors.New("can not decrypt with a nil cipher")
 		return
 	}
 	// Check if path is within the crypt remote prefix
-	if partOfPrefix = strings.HasPrefix(path2process, c.rc.Crypt.PathPrefix); !partOfPrefix {
+	if partOfPrefix = strings.HasPrefix(encryptedPath, c.rc.Crypt.PathPrefix); !partOfPrefix {
 		return
 	}
 	// Remove prefix
-	strippedPath := path2process[len(c.rc.Crypt.PathPrefix):]
+	strippedPath := encryptedPath[len(c.rc.Crypt.PathPrefix):]
 	if path.IsAbs(strippedPath) {
 		strippedPath = strippedPath[1:]
 	}
@@ -158,6 +158,6 @@ func (c *Controller) handleCryptPath(path2process string, directory bool) (decry
 		}
 	}
 	c.logger.Debugf("[Drive] path decrypted using '%s' rclone backend configuration: %s  -->  %s",
-		c.rc.Conf.CryptBackendName, path2process, decryptedPath)
+		c.rc.Conf.CryptBackendName, encryptedPath, decryptedPath)
 	return
 }
