@@ -9,9 +9,8 @@ import (
 )
 
 const (
-	waitTimeSafetyMargin = time.Second
-	stateJobsTotalKey    = "jobs_len"
-	stateJobsPrefix      = "jobs_#"
+	stateJobsTotalKey = "jobs_len"
+	stateJobsPrefix   = "jobs_#"
 )
 
 type jobElement struct {
@@ -21,7 +20,7 @@ type jobElement struct {
 	ScanPath string
 }
 
-func (c *Controller) generateJobsDefinition(path string, eventTime time.Time, libs []plexapi.Library) (jobs []*jobElement) {
+func (c *Controller) generateJobsDefinition(path string, scanAt time.Time, libs []plexapi.Library) (jobs []*jobElement) {
 	// Find libraries that contains this path
 	validLibs := make(map[string]string, len(libs))
 libs:
@@ -38,8 +37,6 @@ libs:
 	if len(validLibs) == 0 {
 		return
 	}
-	// Compute the time when we will be able to start the scan (+ a safety marging)
-	waitUntil := eventTime.Add(c.interval + waitTimeSafetyMargin).In(c.tz)
 	// Create the jobs definitions
 	jobs = make([]*jobElement, len(validLibs))
 	index := 0
@@ -47,7 +44,7 @@ libs:
 		jobs[index] = &jobElement{
 			LibKey:   libKey,
 			LibName:  libName,
-			ScanAt:   waitUntil,
+			ScanAt:   scanAt,
 			ScanPath: path,
 		}
 		index++

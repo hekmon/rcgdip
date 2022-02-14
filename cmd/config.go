@@ -12,20 +12,22 @@ import (
 )
 
 const (
-	rcloneConfigPathEnvName        = "RCGDIP_RCLONE_CONFIG_PATH"
-	rcloneDriveBackendNameEnvName  = "RCGDIP_RCLONE_BACKEND_DRIVE_NAME"
-	rcloneDrivePollIntervalEnvName = "RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL"
-	rcloneCryptackendNameEnvName   = "RCGDIP_RCLONE_BACKEND_CRYPT_NAME"
-	rcloneMountPathEnvName         = "RCGDIP_RCLONE_MOUNT_PATH"
-	plexURLEnvName                 = "RCGDIP_PLEX_URL"
-	plexTokenEnvName               = "RCGDIP_PLEX_TOKEN"
-	logLevelEnvName                = "RCGDIP_LOGLEVEL"
+	rcloneConfigPathEnvName         = "RCGDIP_RCLONE_CONFIG_PATH"
+	rcloneDriveBackendNameEnvName   = "RCGDIP_RCLONE_BACKEND_DRIVE_NAME"
+	rcloneDrivePollIntervalEnvName  = "RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL"
+	rcloneDriveDirCacheTimelEnvName = "RCGDIP_RCLONE_BACKEND_DRIVE_DIRCACHETIME"
+	rcloneCryptackendNameEnvName    = "RCGDIP_RCLONE_BACKEND_CRYPT_NAME"
+	rcloneMountPathEnvName          = "RCGDIP_RCLONE_MOUNT_PATH"
+	plexURLEnvName                  = "RCGDIP_PLEX_URL"
+	plexTokenEnvName                = "RCGDIP_PLEX_TOKEN"
+	logLevelEnvName                 = "RCGDIP_LOGLEVEL"
 )
 
 var (
 	rcloneConfigPath        string
 	rcloneDriveName         string
 	rcloneDrivePollInterval time.Duration
+	rcloneDriveDirCacheTime time.Duration
 	rcloneCryptName         string
 	rcloneMountPath         string
 	plexURL                 *url.URL
@@ -54,11 +56,26 @@ func populateConfig() (err error) {
 			return fmt.Errorf("failed to parse %s as duration: %s", rcloneDrivePollIntervalEnvName, err)
 		}
 		if rcloneDrivePollInterval < time.Second {
-			return fmt.Errorf("%s can not be set under a second", rcloneDrivePollIntervalEnvName)
+			return fmt.Errorf("%s (%v) can not be set under a second", rcloneDrivePollIntervalEnvName, rcloneDrivePollInterval)
 		}
 	} else {
 		// use rclone default
 		rcloneDrivePollInterval = vfscommon.DefaultOpt.PollInterval
+	}
+	// dir cache time
+	dirCacheTimeStr := os.Getenv(rcloneDriveDirCacheTimelEnvName)
+	if pollIntervalStr != "" {
+		// parse
+		if rcloneDriveDirCacheTime, err = time.ParseDuration(dirCacheTimeStr); err != nil {
+			return fmt.Errorf("failed to parse %s as duration: %s", rcloneDriveDirCacheTimelEnvName, err)
+		}
+		if rcloneDriveDirCacheTime < rcloneDrivePollInterval {
+			return fmt.Errorf("%s (%v) can not be set lower than %s (%v)",
+				rcloneDriveDirCacheTimelEnvName, rcloneDriveDirCacheTime, rcloneDrivePollIntervalEnvName, rcloneDrivePollInterval)
+		}
+	} else {
+		// use rclone default
+		rcloneDriveDirCacheTime = vfscommon.DefaultOpt.DirCacheTime
 	}
 	// mount path
 	if rcloneMountPath = os.Getenv(rcloneMountPathEnvName); rcloneMountPath == "" {
@@ -101,6 +118,7 @@ func debugConf() {
 	logger.Debugf("[Main] %s: %s", rcloneConfigPathEnvName, rcloneConfigPath)
 	logger.Debugf("[Main] %s: %s", rcloneDriveBackendNameEnvName, rcloneDriveName)
 	logger.Debugf("[Main] %s: %v", rcloneDrivePollIntervalEnvName, rcloneDrivePollInterval)
+	logger.Debugf("[Main] %s: %v", rcloneDriveDirCacheTimelEnvName, rcloneDriveDirCacheTime)
 	logger.Debugf("[Main] %s: %v", rcloneCryptackendNameEnvName, rcloneCryptName)
 	logger.Debugf("[Main] %s: %v", rcloneMountPathEnvName, rcloneMountPath)
 	logger.Debugf("[Main] %s: %v", plexURLEnvName, plexURL.String())

@@ -122,6 +122,7 @@ func main() {
 	if plexTriggerer, err = plex.New(mainCtx, plex.Config{
 		Input:          changesChan,
 		PollInterval:   rcloneDrivePollInterval,
+		DirCacheTime:   rcloneDriveDirCacheTime,
 		MountPoint:     rcloneMountPath,
 		PlexURL:        plexURL,
 		PlexToken:      plexToken,

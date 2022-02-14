@@ -8,6 +8,10 @@ import (
 	"github.com/hekmon/rcgdip/drivechange"
 )
 
+const (
+	waitTimeSafetyMargin = time.Second
+)
+
 func (c *Controller) triggerWorker(input <-chan []drivechange.File) {
 	// Prepare
 	defer c.workers.Done()
@@ -108,6 +112,7 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 	var (
 		nbPaths                  int
 		found                    bool
+		waitUntil                time.Time
 		alreadyScheduledPathTime time.Time
 	)
 	for _, change := range changes {
@@ -122,10 +127,19 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 				c.logger.Infof("[Plex] skipping folder change not being deletion: %s", changePath)
 				continue
 			}
+			// Compute the time when we will be able to start the scan (+ a safety marging)
+			if change.Deleted {
+				// rclone will only see it after its dir cache time is elapsed
+				waitUntil = change.Event.Add(c.dircache + waitTimeSafetyMargin).In(c.tz)
+			} else {
+				// rclone will see it within its PollInterval
+				waitUntil = change.Event.Add(c.interval + waitTimeSafetyMargin).In(c.tz)
+			}
 			// Schedule scan for parent folder
 			parent := path.Join(c.mountPoint, path.Dir(changePath))
 			if alreadyScheduledPathTime, found = scanList[parent]; !found {
-				scanList[parent] = change.Event
+				// parent path is new, add it to the list
+				scanList[parent] = waitUntil
 				// Debug log
 				if c.logger.IsInfoShown() {
 					if change.Folder { // and deleted ofc
@@ -140,9 +154,9 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 						c.logger.Infof("[Plex] file '%s' %s, adding its local parent to scan list: %s", changePath, action, parent)
 					}
 				}
-			} else if alreadyScheduledPathTime.Before(change.Event) {
-				// current event is fresher thanthe one  previously registered for this path, this means we
-				// need to wait longer to see it locally, always use the one we need to wait for the most to avoid scanning too early
+			} else if alreadyScheduledPathTime.Before(waitUntil) {
+				// current event is fresher than the one  previously registered for this path, it means we need to wait longer to see it locally:
+				// always use the one we need to wait for the most to avoid scanning too early
 				c.logger.Debugf("[Plex] path '%s' was already registered for scan for event at %v. But a new event is younger, replacing time: %v",
 					parent, alreadyScheduledPathTime, change.Event)
 				scanList[parent] = change.Event

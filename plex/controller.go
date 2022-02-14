@@ -18,6 +18,7 @@ type Config struct {
 	// Global config
 	Input        <-chan []drivechange.File
 	PollInterval time.Duration
+	DirCacheTime time.Duration
 	MountPoint   string
 	// Plex API config
 	PlexURL        *url.URL
@@ -45,6 +46,7 @@ type Controller struct {
 	// Global
 	ctx        context.Context
 	interval   time.Duration
+	dircache   time.Duration
 	mountPoint string
 	tz         *time.Location
 	// Storage
@@ -69,6 +71,7 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 	c = &Controller{
 		ctx:        ctx,
 		interval:   conf.PollInterval,
+		dircache:   conf.DirCacheTime,
 		mountPoint: path.Clean(conf.MountPoint),
 		state:      conf.StateBackend,
 		logger:     conf.Logger,
@@ -78,9 +81,9 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		err = fmt.Errorf("mount point path should be absolute: %s", c.mountPoint)
 		return
 	}
-	if c.mountPoint[len(c.mountPoint)-1] != '/' {
-		c.mountPoint += "/"
-	}
+	// if c.mountPoint[len(c.mountPoint)-1] != '/' {
+	// 	c.mountPoint += "/"
+	// }
 	// Recover or generate a clientID
 	clientID, err := c.getClientID()
 	if err != nil {
