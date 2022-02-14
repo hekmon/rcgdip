@@ -94,7 +94,7 @@ User=rcgdip
 WorkingDirectory=~
 EnvironmentFile=/etc/default/rcgdip
 ExecStart=/usr/local/bin/rcgdip
-ExecReload=/bin/kill -SIGHUP $MAINPID
+ExecReload=/bin/kill -SIGUSR1 \$MAINPID
 Restart=on-failure
 
 [Install]
@@ -121,7 +121,7 @@ User=rcgdip
 WorkingDirectory=~
 EnvironmentFile=/etc/default/rcgdip_%i
 ExecStart=/usr/local/bin/rcgdip -instance %i
-ExecReload=/bin/kill -SIGHUP $MAINPID
+ExecReload=/bin/kill -SIGUSR1 \$MAINPID
 Restart=on-failure
 
 [Install]
