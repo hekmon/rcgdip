@@ -11,7 +11,7 @@ import (
 	"github.com/hekmon/rcgdip/drivechange"
 	plexapi "github.com/hekmon/rcgdip/plex/api"
 
-	"github.com/hekmon/hllogger"
+	"github.com/hekmon/hllogger/v2"
 )
 
 type Config struct {
@@ -28,7 +28,7 @@ type Config struct {
 	// Storage
 	StateBackend Storage
 	// Sub controllers
-	Logger *hllogger.HlLogger
+	Logger *hllogger.Logger
 }
 
 type Storage interface {
@@ -54,7 +54,7 @@ type Controller struct {
 	jobs       []*jobElement
 	jobsAccess sync.Mutex
 	// Controllers
-	logger *hllogger.HlLogger
+	logger *hllogger.Logger
 	plex   *plexapi.Client
 	// Workers control plane
 	workers  sync.WaitGroup

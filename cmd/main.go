@@ -16,7 +16,7 @@ import (
 	"github.com/hekmon/rcgdip/plex"
 	"github.com/hekmon/rcgdip/storage"
 
-	"github.com/hekmon/hllogger"
+	"github.com/hekmon/hllogger/v2"
 	sysd "github.com/iguanesolutions/go-systemd/v5"
 	sysdnotify "github.com/iguanesolutions/go-systemd/v5/notify"
 )
@@ -28,7 +28,7 @@ var (
 	// Flags
 	systemdLaunched bool
 	// Controllers
-	logger        *hllogger.HlLogger
+	logger        *hllogger.Logger
 	db            *storage.Controller
 	driveWatcher  *gdrive.Controller
 	plexTriggerer *plex.Controller
@@ -58,15 +58,7 @@ func main() {
 	_, systemdLaunched = sysd.GetInvocationID()
 
 	// Initialize the logger
-	var loggerFlags int
-	if !systemdLaunched {
-		loggerFlags = hllogger.Ltime | hllogger.Ldate
-	}
-	logger = hllogger.New(os.Stdout, &hllogger.Config{
-		LogLevel:              logLevel,
-		LoggerFlags:           loggerFlags,
-		SystemdJournaldCompat: systemdLaunched,
-	})
+	logger = hllogger.New(os.Stdout, logLevel)
 	if systemdLaunched {
 		logger.Debug("[Main] systemd integration activated")
 	}
@@ -88,7 +80,8 @@ func main() {
 		Instance: *flagInstance,
 		Logger:   logger,
 	}); err != nil {
-		logger.Fatalf(1, "[Main] failed to initialize storage: %s", err.Error())
+		logger.Errorf("[Main] failed to initialize storage: %s", err.Error())
+		os.Exit(1)
 	}
 	logger.Info("[Main] storage backend ready")
 

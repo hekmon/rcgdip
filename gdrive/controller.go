@@ -9,7 +9,7 @@ import (
 	"github.com/hekmon/rcgdip/drivechange"
 	"github.com/hekmon/rcgdip/gdrive/rcsnooper"
 
-	"github.com/hekmon/hllogger"
+	"github.com/hekmon/hllogger/v2"
 	"golang.org/x/time/rate"
 	"google.golang.org/api/drive/v3"
 )
@@ -17,7 +17,7 @@ import (
 type Config struct {
 	RClone       rcsnooper.Config
 	PollInterval time.Duration
-	Logger       *hllogger.HlLogger
+	Logger       *hllogger.Logger
 	StateBackend Storage
 	IndexBackend Storage
 	KillSwitch   func()
@@ -38,7 +38,7 @@ type Storage interface {
 type Controller struct {
 	// Global
 	ctx        context.Context
-	logger     *hllogger.HlLogger
+	logger     *hllogger.Logger
 	killSwitch func()
 	// RClone Snooper
 	rc *rcsnooper.Controller

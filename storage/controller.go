@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"git.mills.io/prologic/bitcask"
-	"github.com/hekmon/hllogger"
+	"github.com/hekmon/hllogger/v2"
 )
 
 const (
@@ -18,12 +18,12 @@ const (
 
 type Config struct {
 	Instance string
-	Logger   *hllogger.HlLogger
+	Logger   *hllogger.Logger
 }
 
 type Controller struct {
 	// Global
-	logger       *hllogger.HlLogger
+	logger       *hllogger.Logger
 	mainDBPath   string
 	backupDBPath string
 	// KV DB

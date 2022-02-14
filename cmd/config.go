@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hekmon/hllogger"
+	"github.com/hekmon/hllogger/v2"
 	"github.com/rclone/rclone/vfs/vfscommon"
 )
 
@@ -98,12 +98,12 @@ func populateConfig() (err error) {
 	}
 	// log level
 	switch strings.ToUpper(os.Getenv(logLevelEnvName)) {
-	case "FATAL":
-		logLevel = hllogger.Fatal
 	case "ERROR":
 		logLevel = hllogger.Error
 	case "WARNING":
 		logLevel = hllogger.Warning
+	case "NOTICE":
+		logLevel = hllogger.Notice
 	case "INFO":
 		logLevel = hllogger.Info
 	case "DEBUG":
