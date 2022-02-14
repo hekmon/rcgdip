@@ -155,7 +155,7 @@ func handleSignals() {
 	for sig = range signalChannel {
 		switch sig {
 		case syscall.SIGUSR1:
-			// TODO backup db
+			backupDB()
 		case syscall.SIGTERM:
 			fallthrough
 		case syscall.SIGINT:
@@ -166,6 +166,23 @@ func handleSignals() {
 		default:
 			logger.Warningf("[Main] Signal '%v' caught but no process set to handle it: skipping", sig)
 		}
+	}
+}
+
+func backupDB() {
+	// Systemd notify
+	if err := sysdnotify.Reloading(); err != nil {
+		logger.Errorf("[Main] can't send systemd reloading notification: %v", err)
+	} else if systemdLaunched {
+		logger.Debug("[Main] systemd reloading notification sent")
+	}
+	// Backup db
+	db.Backup()
+	// Systemd notify
+	if err := sysdnotify.Ready(); err != nil {
+		logger.Errorf("[Main] can't send systemd ready notification: %v", err)
+	} else if systemdLaunched {
+		logger.Debug("[Main] systemd ready notification sent")
 	}
 }
 

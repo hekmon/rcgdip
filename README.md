@@ -34,6 +34,9 @@ It supports (directly from your rclone config file):
     - [scan list optimizations](#scan-list-optimizations)
       - [same path optimization](#same-path-optimization)
       - [same ancester optimization](#same-ancester-optimization)
+    - [db backup](#db-backup)
+      - [Mono instance](#mono-instance-3)
+      - [Multi instances](#multi-instances-3)
   - [Sponsoring](#sponsoring)
 
 ## Installation
@@ -212,6 +215,18 @@ If several files have changed within the same directoy, only one scan job will b
 #### same ancester optimization
 
 If 2 paths are scheduled for scan but one of them is actually a parent of the other, only the parent will be kept as it will also scan the child. But what about wait time ? If the parent was to be scanned at T+2 but the child was to be scanned at T+3, this optimization will remove the scan job for the child but adapt the scan time of the parent to T+3 in order for all changes to be detected within the scan.
+
+### db backup
+
+Do not backup while rcgdip is running ! By default a backup is performed at each start. If you need to make a backup of the db while rcgdip is running, send the `USR1` signal to the process: it will perform a backup in the backup directory which you can access safely. If you are using the systemd integration a simple reload of the unit will send the signal for you.
+
+#### Mono instance
+
+db directory is `rcgdip_storage` in the current workind directory (`/var/lib/rcgdip` if you followed the installation steps) and the backup directory is `rcgdip_storage_backup`. To start a backup while rcgdip is running just launch `systemctl reload rcgdip.service` and check the logs.
+
+#### Multi instances
+
+For an instance named `instanceName`, the db directory is `rcgdip_storage_instanceName` in the current workind directory (`/var/lib/rcgdip` if you followed the installation steps) and the backup directory is `rcgdip_storage_instanceName_backup`. To start a backup while rcgdip is running just launch `systemctl reload rcgdip@instanceName.service` and check the logs.
 
 ## Sponsoring
 

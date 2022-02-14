@@ -87,3 +87,11 @@ func (c *Controller) Stop() {
 	}
 	c.logger.Info("[Storage] database closed")
 }
+
+func (c *Controller) Backup() {
+	if err := c.db.Backup(c.backupDBPath); err != nil {
+		c.logger.Errorf("[Storage] failed to save db: %s", err)
+		return
+	}
+	c.logger.Infof("[Storage] successfully currently running db '%s' into '%s'", c.mainDBPath, c.backupDBPath)
+}
