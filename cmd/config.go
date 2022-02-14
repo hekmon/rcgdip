@@ -64,7 +64,7 @@ func populateConfig() (err error) {
 	}
 	// dir cache time
 	dirCacheTimeStr := os.Getenv(rcloneDriveDirCacheTimelEnvName)
-	if pollIntervalStr != "" {
+	if dirCacheTimeStr != "" {
 		// parse
 		if rcloneDriveDirCacheTime, err = time.ParseDuration(dirCacheTimeStr); err != nil {
 			return fmt.Errorf("failed to parse %s as duration: %s", rcloneDriveDirCacheTimelEnvName, err)
