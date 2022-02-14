@@ -24,7 +24,7 @@ import (
 var (
 	// Linking time
 	appName    = "rcgdip"
-	appVersion = "0.2.0-dev"
+	appVersion = "dev"
 	// Flags
 	systemdLaunched bool
 	// Controllers
@@ -44,7 +44,7 @@ func main() {
 	flagInstance := flag.String("instance", "", "define a custom instance for storage")
 	flag.Parse()
 	if *flagVersion {
-		fmt.Printf("%s v%s\n", appName, appVersion)
+		fmt.Printf("%s %s\n", appName, appVersion)
 		os.Exit(0)
 	}
 
