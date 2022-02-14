@@ -33,10 +33,10 @@ func (c *Controller) extractDriveBackend(backend string) (err error) {
 	}
 	// Extract values we need not within options
 	var found bool
-	if c.Drive.ClientID, found = conf.Get(config.ConfigClientID); found || c.Drive.ClientID == "" {
+	if c.Drive.ClientID, found = conf.Get(config.ConfigClientID); !found || c.Drive.ClientID == "" {
 		return fmt.Errorf("%s must be set", config.ConfigClientID)
 	}
-	if c.Drive.ClientSecret, found = conf.Get(config.ConfigClientSecret); found || c.Drive.ClientSecret == "" {
+	if c.Drive.ClientSecret, found = conf.Get(config.ConfigClientSecret); !found || c.Drive.ClientSecret == "" {
 		return fmt.Errorf("%s must be set", config.ConfigClientSecret)
 	}
 	tokenRaw, found := conf.Get(config.ConfigToken)
