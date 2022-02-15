@@ -21,6 +21,7 @@ func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err erro
 		err = fmt.Errorf("failed to get remote root drive id infos: %w", err)
 		return
 	}
+	c.logger.Debugf("[Drive] remote root id recovered: %s", remoteRootID)
 	// If the remote drive does not validate, invalid our local state
 	defer func() {
 		if err == nil {
@@ -49,6 +50,7 @@ func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err erro
 		c.logger.Warningf("[Drive] rootID has changed (%s -> %s), invalidating state", storedRootID, remoteRootID)
 		return
 	}
+	c.logger.Debug("[Drive] rootID recovered in our state matches the one upstream, checking metadata...")
 	// Validate index based on root file info
 	var storedRootInfo driveFileBasicInfo
 	if found, err = c.index.Get(storedRootID, &storedRootInfo); err != nil {
@@ -65,7 +67,7 @@ func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err erro
 		return
 	}
 	// All good
-	c.logger.Debugf("[Drive] the root folderID '%s' in our local state seems valid", storedRootID)
+	c.logger.Debugf("[Drive] the rootID '%s' and its metadata in our local state seems valid", storedRootID)
 	sameDrive = true
 	return
 }
