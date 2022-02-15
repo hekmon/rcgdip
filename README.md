@@ -63,7 +63,7 @@ While technically rcgdip can run anywhere, it is recommended to run it alongside
 sudo useradd --home-dir /var/lib/rcgdip --create-home --system --shell /usr/sbin/nologin rcgdip
 sudo chown rcgdip: /var/lib/rcgdip
 sudo chmod 750 /var/lib/rcgdip
-sudo wget https://github.com/hekmon/rcgdip/releases/download/v0.1.0/rcgdip_linux_amd64 -O /usr/local/bin/rcgdip
+sudo wget https://github.com/hekmon/rcgdip/releases/download/v0.1.1/rcgdip_linux_amd64 -O /usr/local/bin/rcgdip
 sudo chmod +x /usr/local/bin/rcgdip
 # adapt to the group of your rclone config file, here the rclone config file is owned (and readable) by the rclone group
 sudo usermod -a -G rclone rcgdip
