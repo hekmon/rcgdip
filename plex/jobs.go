@@ -63,7 +63,7 @@ func (c *Controller) jobExecutor(job *jobElement) {
 		if _, err := c.plex.ScanLibrary(c.ctx, job.LibKey, job.ScanPath); err != nil {
 			c.logger.Errorf("[Plex] failed to start targeted library scan for '%s' on path '%s': %s", job.LibName, job.ScanPath, err)
 		} else {
-			c.logger.Infof("[Plex] successfully launched a targeted scan for '%s' on path '%s'", job.LibName, job.ScanPath)
+			c.logger.Noticef("[Plex] successfully launched a targeted scan for '%s' on path '%s'", job.LibName, job.ScanPath)
 		}
 	case <-c.ctx.Done():
 		// we should stop, let's save the job in our state

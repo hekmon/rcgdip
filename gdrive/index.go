@@ -55,9 +55,9 @@ func (c *Controller) initialIndexBuild() (err error) {
 		}
 	}
 	// Done
-	if c.logger.IsInfoShown() {
+	if c.logger.IsNoticeShown() {
 		// c.index.NbKeys() is filtered so a bit expensive
-		c.logger.Infof("[Drive] index builded with %d nodes in %v", c.index.NbKeys(), time.Since(start))
+		c.logger.Noticef("[Drive] index builded with %d nodes in %v", c.index.NbKeys(), time.Since(start))
 	}
 	return
 }
