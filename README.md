@@ -161,7 +161,7 @@ sudo journalctl -f -u rcgdip@instanceName.service
 * `--dir-cache-time` which is the time rclone itself keeps the metadata of each folder without reasking the backend to answers the FUSE requests when `--attr-timeout` is elapsed. Also keep default if you can.
 * `--poll-interval` the frequency used by rclone to ask the backend for changes, it allows for targetted updates of the dir cache even if it is still within the `--dir-cache-time` window. It should be lower than `--dir-cache-time`. Default value is fine here too.
 
-rcgdip bases its prediction on the `--poll-interval` using the same default as rclone, if you customize the rclone `--poll-interval` for your rclone mount remember to set the exact same value in `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` as well as rcgdip will wait this interval between the change event timestamp and the plex scan in order to be sure the local rclone mount had the time to discover the new file(s). Note that this also applies to `--dir-cache-time` and `RCGDIP_RCLONE_BACKEND_DRIVE_DIRCACHETIME`, see next session for more details.
+rcgdip bases its prediction on the `--poll-interval` using the same default as rclone, if you customize the rclone `--poll-interval` for your rclone mount remember to set the exact same value in `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` as well as rcgdip will wait this interval between the change event timestamp and the plex scan in order to be sure the local rclone mount had the time to discover the new file(s). Note that this also applies to `--dir-cache-time` and `RCGDIP_RCLONE_BACKEND_DRIVE_DIRCACHETIME`, see next section for more details.
 
 ### deletion events
 
@@ -177,7 +177,7 @@ rcgdip is built with original rclone parts directly (as libs or constant values 
 
 ### scan list optimizations
 
-To avoid too many scan requests to be fired, severals optimizations are made between the raw changes from drive and the scan requests to plex.
+To avoid too many scan requests to be fired, severals optimizations are made inside a batch between the raw changes from drive and the scan requests to plex.
 
 #### same path optimization
 
