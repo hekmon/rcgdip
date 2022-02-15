@@ -24,6 +24,10 @@ func (c *Controller) validateState() (err error) {
 		return
 	}
 	c.logger.Debugf("[Drive] remote root id recovered: %s", remoteRootID)
+	// Now that we know the remote rootID, handle a special case
+	if c.rc.Drive.Options.RootFolderID == "root" {
+		c.rc.Drive.Options.RootFolderID = ""
+	}
 	// If the state validation failed (while not being an execution error), reset our local state
 	defer func() {
 		if err == nil && !valid {
@@ -82,6 +86,11 @@ func (c *Controller) validateState() (err error) {
 		c.logger.Warning("[Drive] local index is incomplete: reiniting local state")
 		return
 	}
+	// Does the custom root folderID exists within our index ?
+	if c.rc.Drive.Options.RootFolderID != "" && !c.index.Has(c.rc.Drive.Options.RootFolderID) {
+		c.logger.Warningf("[Drive] custom root folder ID ('%s') not found within our index: reiniting local state", c.rc.Drive.Options.RootFolderID)
+		return
+	}
 	// All good
 	valid = true
 	return
@@ -115,6 +124,11 @@ func (c *Controller) reinitState(remoteRootID string, remoteRootInfos *driveFile
 			err = fmt.Errorf("failed to clone root folder file infos as teamdrive within the local index: %w", err)
 			return
 		}
+	}
+	// Does the custom root folderID exists upstream ?
+	if _, err = c.getDriveFileInfo(c.rc.Drive.Options.RootFolderID); err != nil {
+		err = fmt.Errorf("failed to validate rclone declared root folder ID upstream: %w", err)
+		return
 	}
 	// Get changes starting point
 	var nextStartPage string
