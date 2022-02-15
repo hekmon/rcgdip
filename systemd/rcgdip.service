@@ -1,0 +1,17 @@
+[Unit]
+Description=RClone GDrive inotify for Plex
+Requires=network-online.target
+After=network-online.target plexmediaserver.service
+BindsTo=plexmediaserver.service
+
+[Service]
+Type=notify
+User=rcgdip
+WorkingDirectory=~
+EnvironmentFile=/etc/default/rcgdip
+ExecStart=/usr/local/bin/rcgdip
+ExecReload=/bin/kill -SIGUSR1 $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
