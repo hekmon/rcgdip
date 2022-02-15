@@ -73,60 +73,31 @@ sudo usermod -a -G rclone rcgdip
 
 If your rclone mount is started with systemd too (for example using [rclonemount](https://github.com/hekmon/rclonemount)), add it to `After=` and `BindsTo=` as well. Eg:
 
-```systemd
-After=network-online.target plexmediaserver.service rclonemount@<yourinstance>.service
-BindsTo=plexmediaserver.service rclonemount@<yourinstance>.service
+```ini
+[Unit]
+After=rclonemount@<yourinstance>.service
+BindsTo=rclonemount@<yourinstance>.service
 ```
+
+Add it add while `systemd edit ...` on the next parts.
 
 ##### Mono instance
 
 ```bash
-cat <<EOF | sudo tee /etc/systemd/system/rcgdip.service
-[Unit]
-Description=RClone GDrive inotify for Plex
-Requires=network-online.target
-After=network-online.target plexmediaserver.service
-BindsTo=plexmediaserver.service
-
-[Service]
-Type=notify
-User=rcgdip
-WorkingDirectory=~
-EnvironmentFile=/etc/default/rcgdip
-ExecStart=/usr/local/bin/rcgdip
-ExecReload=/bin/kill -SIGUSR1 \$MAINPID
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-EOF
+sudo wget 'https://raw.githubusercontent.com/hekmon/rcgdip/main/systemd/rcgdip.service' -O '/etc/systemd/system/rcgdip.service'
+sudo systemctl edit rcgdip.service # add your rclonemount unit as stated previously
 sudo systemctl daemon-reload
 ```
 
 ##### Multi instances
 
-Optional. If you intend to run multiples instances.
+Optional. If you intend to run multiples instances. Each instance must have a custom edit.
 
 ```bash
-cat <<EOF | sudo tee /etc/systemd/system/rcgdip@.service
-[Unit]
-Description=RClone GDrive inotify for Plex - %i
-Requires=network-online.target
-After=network-online.target plexmediaserver.service
-BindsTo=plexmediaserver.service
-
-[Service]
-Type=notify
-User=rcgdip
-WorkingDirectory=~
-EnvironmentFile=/etc/default/rcgdip_%i
-ExecStart=/usr/local/bin/rcgdip -instance %i
-ExecReload=/bin/kill -SIGUSR1 \$MAINPID
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-EOF
+sudo wget 'https://raw.githubusercontent.com/hekmon/rcgdip/main/systemd/rcgdip%40.service' -O '/etc/systemd/system/rcgdip@.service'
+sudo systemctl edit rcgdip@instanceNameA.service # add the related rclonemount unit as stated previously
+sudo systemctl edit rcgdip@instanceNameB.service # add the (other) related rclonemount unit as stated previously
+# ... repeat for each instance (1 rclone mount == 1 rcgdip instance)
 sudo systemctl daemon-reload
 ```
 
