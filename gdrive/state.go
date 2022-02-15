@@ -6,15 +6,17 @@ import (
 )
 
 const (
-	stateNextStartPageKey = "nextStartPage"
 	stateRootFolderIDKey  = "rootFolderID"
+	stateNextStartPageKey = "nextStartPage"
+	stateIndexOK          = "indexOK"
 )
 
-func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err error) {
+func (c *Controller) validateState() (err error) {
 	c.logger.Info("[Drive] validating local state against remote drive...")
 	var (
 		remoteRootID    string
 		remoteRootInfos *driveFileBasicInfo
+		valid           bool
 	)
 	// Get the current remote rootID to see if we are still accessing the same drive
 	if remoteRootID, remoteRootInfos, err = c.getDriveRootFileInfo(); err != nil {
@@ -22,13 +24,11 @@ func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err erro
 		return
 	}
 	c.logger.Debugf("[Drive] remote root id recovered: %s", remoteRootID)
-	// If the remote drive does not validate, invalid our local state
+	// If the state validation failed (while not being an execution error), reset our local state
 	defer func() {
-		if err == nil {
-			if sameDrive {
-				c.logger.Info("[Drive] local state seems valid")
-			} else {
-				err = c.resetState(remoteRootID, remoteRootInfos)
+		if err == nil && !valid {
+			if err = c.reinitState(remoteRootID, remoteRootInfos); err != nil {
+				err = fmt.Errorf("failed to reinit local state: %w", err)
 			}
 		}
 	}()
@@ -42,12 +42,12 @@ func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err erro
 		return
 	}
 	if !found {
-		c.logger.Info("[Drive] no stored root folderID found, starting a new state")
+		c.logger.Notice("[Drive] no stored root folderID found: starting a new state")
 		return
 	}
 	// Check
 	if storedRootID != remoteRootID {
-		c.logger.Warningf("[Drive] rootID has changed (%s -> %s), invalidating state", storedRootID, remoteRootID)
+		c.logger.Warningf("[Drive] rootID has changed (%s -> %s): reiniting local state", storedRootID, remoteRootID)
 		return
 	}
 	c.logger.Debug("[Drive] rootID recovered in our state matches the one upstream, checking metadata...")
@@ -58,21 +58,36 @@ func (c *Controller) validateStateAgainstRemoteDrive() (sameDrive bool, err erro
 		return
 	}
 	if !found {
-		c.logger.Warning("[Drive] we have a stored rootFolderID but it is not present in our index, invalidating state")
+		c.logger.Warning("[Drive] we have a stored rootFolderID but it is not present in our index: reiniting local state")
 		return
 	}
 	if !reflect.DeepEqual(storedRootInfo, *remoteRootInfos) {
-		c.logger.Warningf("[Drive] our cached root property is not the same as remote, invalidating state: %+v -> %+v",
+		c.logger.Warningf("[Drive] our cached root property is not the same as remote (%+v -> %+v): reiniting local state",
 			storedRootInfo, *remoteRootInfos)
 		return
 	}
-	// All good
 	c.logger.Debugf("[Drive] the rootID '%s' and its metadata in our local state seems valid", storedRootID)
-	sameDrive = true
+	// Do we have a next start page ?
+	var nextStartPage string
+	if found, err = c.state.Get(stateNextStartPageKey, &nextStartPage); err != nil {
+		err = fmt.Errorf("failed to get the start page token from our local storage: %w", err)
+		return
+	}
+	if !found {
+		c.logger.Warning("[Drive] did not find any changes startNextPage token in our state: reiniting local state")
+		return
+	}
+	// Is indexing complete ?
+	if !c.state.Has(stateIndexOK) {
+		c.logger.Warning("[Drive] local index is incomplete: reiniting local state")
+		return
+	}
+	// All good
+	valid = true
 	return
 }
 
-func (c *Controller) resetState(remoteRootID string, remoteRootInfos *driveFileBasicInfo) (err error) {
+func (c *Controller) reinitState(remoteRootID string, remoteRootInfos *driveFileBasicInfo) (err error) {
 	// Clear state and index
 	if err = c.state.Clear(); err != nil {
 		err = fmt.Errorf("failed to clean the state: %w", err)
@@ -101,36 +116,24 @@ func (c *Controller) resetState(remoteRootID string, remoteRootInfos *driveFileB
 			return
 		}
 	}
-	return
-}
-
-func (c *Controller) initState(reindex bool) (err error) {
-	var found bool
-	// StartNextPage
+	// Get changes starting point
 	var nextStartPage string
-	if found, err = c.state.Get(stateNextStartPageKey, &nextStartPage); err != nil {
-		err = fmt.Errorf("failed to get the start page token from our local storage: %w", err)
+	if nextStartPage, err = c.getDriveChangesStartPage(); err != nil {
+		err = fmt.Errorf("failed to get the start page token from Drive API: %w", err)
 		return
 	}
-	if !found {
-		if nextStartPage, err = c.getDriveChangesStartPage(); err != nil {
-			err = fmt.Errorf("failed to get the start page token from Drive API: %w", err)
-			return
-		}
-		if err = c.state.Set(stateNextStartPageKey, nextStartPage); err != nil {
-			err = fmt.Errorf("failed to save the startPageToken within our state: %w", err)
-			return
-		}
+	if err = c.state.Set(stateNextStartPageKey, nextStartPage); err != nil {
+		err = fmt.Errorf("failed to save the startPageToken within our state: %w", err)
+		return
 	}
-	// Index
-	if reindex {
-		if err = c.initialIndexBuild(); err != nil {
-			err = fmt.Errorf("failed to index the drive: %w", err)
-			return
-		}
-	} else if c.logger.IsDebugShown() {
-		// Nb Keys has a performance hit only call it if needed
-		c.logger.Debugf("[Drive] local index contains %d nodes", c.index.NbKeys())
+	// Index all the things
+	if err = c.initialIndexBuild(); err != nil {
+		err = fmt.Errorf("failed to index the drive: %w", err)
+		return
+	}
+	if err = c.state.Set(stateIndexOK, true); err != nil {
+		err = fmt.Errorf("failed to save the startPageToken within our state: %w", err)
+		return
 	}
 	return
 }

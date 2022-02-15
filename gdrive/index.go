@@ -14,7 +14,7 @@ type driveFileBasicInfo struct {
 }
 
 func (c *Controller) initialIndexBuild() (err error) {
-	c.logger.Infof("[Drive] building the initial index...")
+	c.logger.Notice("[Drive] building the initial index...")
 	start := time.Now()
 	// Get all the things, ahem files
 	var (

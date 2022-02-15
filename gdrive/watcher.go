@@ -13,21 +13,9 @@ import (
 func (c *Controller) watcher(interval time.Duration) {
 	// Prepare
 	defer c.workers.Done()
-	// Has the rclone backend changed ?
-	var (
-		sameDrive bool
-		err       error
-	)
-	if sameDrive, err = c.validateStateAgainstRemoteDrive(); err != nil {
-		c.logger.Errorf("[Drive] failed to validate if remote drive has changed: %s", err)
-		if c.ctx.Err() == nil {
-			c.killSwitch()
-		}
-		return
-	}
-	// Fresh start ? (or reset)
-	if err := c.initState(!sameDrive); err != nil {
-		c.logger.Errorf("[Drive] failed to initialize local state: %s", err)
+	// Validate state locally and against remote drive
+	if err := c.validateState(); err != nil {
+		c.logger.Errorf("[Drive] failed to validate local state: %s", err)
 		if c.ctx.Err() == nil {
 			c.killSwitch()
 		}
