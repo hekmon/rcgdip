@@ -86,7 +86,7 @@ Add it add while `systemd edit ...` on the next parts.
 ```bash
 sudo wget 'https://raw.githubusercontent.com/hekmon/rcgdip/main/systemd/rcgdip.service' -O '/etc/systemd/system/rcgdip.service'
 sudo systemctl edit rcgdip.service # add your rclonemount unit as stated previously
-sudo systemctl daemon-reload
+sudo systemctl daemon-reload # not needed if you did systemctl edit
 ```
 
 ##### Multi instances
@@ -98,7 +98,7 @@ sudo wget 'https://raw.githubusercontent.com/hekmon/rcgdip/main/systemd/rcgdip%4
 sudo systemctl edit rcgdip@instanceNameA.service # add the related rclonemount unit as stated previously
 sudo systemctl edit rcgdip@instanceNameB.service # add the (other) related rclonemount unit as stated previously
 # ... repeat for each instance (1 rclone mount == 1 rcgdip instance)
-sudo systemctl daemon-reload
+sudo systemctl daemon-reload # not needed if you did systemctl edit
 ```
 
 ### Configure rcgdip
@@ -189,15 +189,17 @@ If 2 paths are scheduled for scan but one of them is actually a parent of the ot
 
 ### db backup
 
-Do not backup while rcgdip is running ! By default a backup is performed at each start. If you need to make a backup of the db while rcgdip is running, send the `USR1` signal to the process: it will perform a backup in the backup directory which you can access safely. If you are using the systemd integration a simple reload of the unit will send the signal for you.
+Do not backup while rcgdip is running ! By default a backup is performed at each start. If you need to make a backup of the db while rcgdip is running, send the `USR1` signal to the process: it will perform a backup in the backup directory which you can safely access after backup is done.
+
+If you are using the systemd integration a simple reload of the unit will send the signal for you (see sub sections).
 
 #### Mono instance
 
-db directory is `rcgdip_storage` in the current workind directory (`/var/lib/rcgdip` if you followed the installation steps) and the backup directory is `rcgdip_storage_backup`. To start a backup while rcgdip is running just launch `systemctl reload rcgdip.service` and check the logs.
+db directory is `rcgdip_storage` in the current working directory (`/var/lib/rcgdip` if you followed the installation steps) and the backup directory is `rcgdip_storage_backup`. To start a backup while rcgdip is running just launch `systemctl reload rcgdip.service` and check the logs.
 
 #### Multi instances
 
-For an instance named `instanceName`, the db directory is `rcgdip_storage_instanceName` in the current workind directory (`/var/lib/rcgdip` if you followed the installation steps) and the backup directory is `rcgdip_storage_instanceName_backup`. To start a backup while rcgdip is running just launch `systemctl reload rcgdip@instanceName.service` and check the logs.
+For an instance named `instanceName`, the db directory is `rcgdip_storage_instanceName` in the current working directory (`/var/lib/rcgdip` if you followed the installation steps) and the backup directory is `rcgdip_storage_instanceName_backup`. To start a backup while rcgdip is running just launch `systemctl reload rcgdip@instanceName.service` and check the logs.
 
 ## Sponsoring
 
