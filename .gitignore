@@ -19,5 +19,4 @@
 /rcgdip_linux_amd64
 /dev*.sh
 /output.log
-/*_state.json
 /rcgdip_storage*
