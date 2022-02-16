@@ -24,10 +24,6 @@ func (c *Controller) validateState() (err error) {
 		return
 	}
 	c.logger.Debugf("[Drive] remote root id recovered: %s", remoteRootID)
-	// Now that we know the remote rootID, handle a special case
-	if c.rc.Drive.Options.RootFolderID == "root" {
-		c.rc.Drive.Options.RootFolderID = ""
-	}
 	// If the state validation failed (while not being an execution error), reset our local state
 	defer func() {
 		if err == nil && !valid {

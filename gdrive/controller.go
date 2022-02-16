@@ -83,6 +83,10 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		err = fmt.Errorf("unable to initialize Drive API client: %w", err)
 		return
 	}
+	// Some weird case
+	if c.rc.Drive.Options.RootFolderID == "root" {
+		c.rc.Drive.Options.RootFolderID = ""
+	}
 	// Workers
 	c.fullStop = make(chan struct{})
 	go c.stopper()
