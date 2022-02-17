@@ -158,16 +158,18 @@ sudo journalctl -f -u rcgdip@instanceName.service
 3 rclone mount values are importants to have rcgdip work as intended:
 
 * `--attr-timeout` it is the time the FUSE mount is allowed to cache the informations before asking them again to rclone, keep the default unless you know what you are doing but it should always be lower than...
-* `--dir-cache-time` which is the time rclone itself keeps the metadata of each folder without reasking the backend to answers the FUSE requests when `--attr-timeout` is elapsed. Also keep default if you can.
-* `--poll-interval` the frequency used by rclone to ask the backend for changes, it allows for targetted updates of the dir cache even if it is still within the `--dir-cache-time` window. It should be lower than `--dir-cache-time`. Default value is fine here too.
+* `--dir-cache-time` which is the time rclone itself keeps the metadata of each folder without reasking the backend to answers the FUSE requests when `--attr-timeout` is elapsed. Default is fine but I like to increase it to `15m`.
+* `--poll-interval` the frequency used by rclone to ask the backend for changes, it allows for targetted updates of the dir cache even if it is still within the `--dir-cache-time` window. It should be lower than `--dir-cache-time`. Default value is fine here too but I like to increase it to `5m`.
 
-rcgdip bases its prediction on the `--poll-interval` using the same default as rclone, if you customize the rclone `--poll-interval` for your rclone mount remember to set the exact same value in `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` as well as rcgdip will wait this interval between the change event timestamp and the plex scan in order to be sure the local rclone mount had the time to discover the new file(s). Note that this also applies to `--dir-cache-time` and `RCGDIP_RCLONE_BACKEND_DRIVE_DIRCACHETIME`, see next section for more details.
+rcgdip bases its scan delay prediction to detect new and changes files on the `--poll-interval` value. So if you customize the rclone `--poll-interval` for your rclone mount remember to set the exact same value in `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` as well as rcgdip will wait this interval between the change event timestamp and the plex scan in order to be sure the local rclone mount had the time to discover the new file(s). Note that this also applies to `--dir-cache-time` and `RCGDIP_RCLONE_BACKEND_DRIVE_DIRCACHETIME`, see next section for more details.
+
+If you leave `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` and `RCGDIP_RCLONE_BACKEND_DRIVE_DIRCACHETIME` empty, rcgdip will use the same defaults as rclone.
 
 ### deletion events
 
 It seems that while `--poll-interval` works very well in rclone mounting  gdrive for new files and file changes but it does not work for deleted files (it is actually tricky to support as you have to build and maintain your own index locally, which rcgdip does). It means that a new file will be seen by your rclone mount fairly quickly (respecting the `--poll-interval`) but deleted files will only disappears locally when rclone dir cache is expired (the `--dir-cache-time` flag).
 
-This is why in rcgdip you can specify `RCGDIP_RCLONE_BACKEND_DRIVE_DIRCACHETIME` in addition to `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL`: deletion events will wait the `--dir-cache-time` duration before starting a scan while new or changed files will only wait the `--poll-interval` allowing fast detection when this is possible while still correctly handle deletion events.
+This is why in rcgdip you can specify `RCGDIP_RCLONE_BACKEND_DRIVE_DIRCACHETIME` in addition to `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL`: deletion events will wait the `--dir-cache-time` duration before starting a scan while new or changed files will only wait the `--poll-interval` allowing fast detection when this is possible while still correctly handling deletion events.
 
 If not specified, both `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` and `RCGDIP_RCLONE_BACKEND_DRIVE_DIRCACHETIME` take exactly the same default as rclone, be sure to use the same rclone version as the version of rcgdip you are using has been built against ! (see next section).
 
@@ -189,7 +191,7 @@ If 2 paths are scheduled for scan but one of them is actually a parent of the ot
 
 ### db backup
 
-Do not backup while rcgdip is running ! By default a backup is performed at each start. If you need to make a backup of the db while rcgdip is running, send the `USR1` signal to the process: it will perform a backup in the backup directory which you can safely access after backup is done.
+Do not directly backup db files while rcgdip is running ! By default a backup is performed at each start. If you need to make a backup of the db while rcgdip is running, send the `USR1` signal to the process: it will perform a backup in the backup directory which you can safely access after backup is done.
 
 If you are using the systemd integration a simple reload of the unit will send the signal for you (see sub sections).
 
