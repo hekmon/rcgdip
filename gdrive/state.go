@@ -122,9 +122,11 @@ func (c *Controller) reinitState(remoteRootID string, remoteRootInfos *driveFile
 		}
 	}
 	// Does the custom root folderID exists upstream ?
-	if _, err = c.getDriveFileInfo(c.rc.Drive.Options.RootFolderID); err != nil {
-		err = fmt.Errorf("failed to validate rclone declared root folder ID upstream: %w", err)
-		return
+	if c.rc.Drive.Options.RootFolderID != "" {
+		if _, err = c.getDriveFileInfo(c.rc.Drive.Options.RootFolderID); err != nil {
+			err = fmt.Errorf("failed to validate rclone declared custom root folder ID upstream: %w", err)
+			return
+		}
 	}
 	// Get changes starting point
 	var nextStartPage string
