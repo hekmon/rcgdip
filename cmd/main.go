@@ -136,6 +136,7 @@ func main() {
 	}
 	<-mainStop
 	logger.Debugf("[Main] clean stop ok, exiting")
+	os.Exit(exitCode)
 }
 
 func handleSignals() {

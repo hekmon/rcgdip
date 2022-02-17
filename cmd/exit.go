@@ -1,16 +1,16 @@
 package main
 
 import (
-	"os"
 	"sync"
 
 	sysdnotify "github.com/iguanesolutions/go-systemd/v5/notify"
 )
 
+var exitCode int
+
 func killSwtich() {
+	exitCode = 4
 	mainCtxCancel()
-	<-mainStop
-	os.Exit(4)
 }
 
 func stopper() {
