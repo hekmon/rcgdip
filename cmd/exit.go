@@ -6,10 +6,15 @@ import (
 	sysdnotify "github.com/iguanesolutions/go-systemd/v5/notify"
 )
 
-var exitCode int
+var (
+	exitCode       int
+	exitCodeAccess sync.Mutex
+)
 
-func killSwtich() {
-	exitCode = 4
+func killSwtich(code int) {
+	exitCodeAccess.Lock()
+	exitCode = code
+	exitCodeAccess.Unlock()
 	mainCtxCancel()
 }
 

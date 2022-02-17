@@ -97,13 +97,13 @@ func main() {
 		Logger:       logger,
 		StateBackend: db.NewScoppedAccess("drive_state"),
 		IndexBackend: db.NewScoppedAccess("drive_index"),
-		KillSwitch:   killSwtich,
+		KillSwitch:   func() { killSwtich(4) },
 		Output:       changesChan,
 	}); err != nil {
 		logger.Errorf("[Main] failed to initialize the Google Drive watcher: %s", err.Error())
-		mainCtxCancel()
+		killSwtich(2)
 		<-mainStop
-		os.Exit(2)
+		os.Exit(exitCode)
 	}
 	logger.Info("[Main] Google Drive watcher started")
 
@@ -122,9 +122,9 @@ func main() {
 		Logger:         logger,
 	}); err != nil {
 		logger.Errorf("[Main] failed to initialize the Plex Triggerer: %s", err.Error())
-		mainCtxCancel()
+		killSwtich(3)
 		<-mainStop
-		os.Exit(3)
+		os.Exit(exitCode)
 	}
 	logger.Info("[Main] Plex Triggerer started")
 
