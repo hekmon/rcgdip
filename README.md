@@ -4,7 +4,7 @@ RClone GDrive Inotify for Plex is a rclone companion for your plex server using 
 
 It supports (directly from your rclone config file):
 
-* [x] GDrive backends (obviously)
+* [x] GDrive backend (scope `drive` only for now, `drive.file` support planned)
 * [x] Custom root folder ID
 * [x] Team Drives
 * [x] Crypt backend on top of your GDrive backend for path decryption
@@ -63,7 +63,7 @@ While technically rcgdip can run anywhere, it is recommended to run it alongside
 sudo useradd --home-dir /var/lib/rcgdip --create-home --system --shell /usr/sbin/nologin rcgdip
 sudo chown rcgdip: /var/lib/rcgdip
 sudo chmod 750 /var/lib/rcgdip
-sudo wget https://github.com/hekmon/rcgdip/releases/download/v0.1.1/rcgdip_linux_amd64 -O /usr/local/bin/rcgdip
+sudo wget https://github.com/hekmon/rcgdip/releases/download/v0.2.0/rcgdip_linux_amd64 -O /usr/local/bin/rcgdip
 sudo chmod +x /usr/local/bin/rcgdip
 # adapt to the group of your rclone config file, here the rclone config file is owned (and readable) by the rclone group
 sudo usermod -a -G rclone rcgdip
@@ -84,7 +84,7 @@ Add it add while `systemd edit ...` on the next parts.
 ##### Mono instance
 
 ```bash
-sudo wget 'https://raw.githubusercontent.com/hekmon/rcgdip/main/systemd/rcgdip.service' -O '/etc/systemd/system/rcgdip.service'
+sudo wget 'https://raw.githubusercontent.com/hekmon/rcgdip/v0.2.0/systemd/rcgdip.service' -O '/etc/systemd/system/rcgdip.service'
 sudo systemctl edit rcgdip.service # add your rclonemount unit as stated previously
 sudo systemctl daemon-reload # not needed if you did systemctl edit
 ```
@@ -94,7 +94,7 @@ sudo systemctl daemon-reload # not needed if you did systemctl edit
 Optional. If you intend to run multiples instances. Each instance must have a custom edit.
 
 ```bash
-sudo wget 'https://raw.githubusercontent.com/hekmon/rcgdip/main/systemd/rcgdip%40.service' -O '/etc/systemd/system/rcgdip@.service'
+sudo wget 'https://raw.githubusercontent.com/hekmon/rcgdip/v0.2.0/systemd/rcgdip%40.service' -O '/etc/systemd/system/rcgdip@.service'
 sudo systemctl edit rcgdip@instanceNameA.service # add the related rclonemount unit as stated previously
 sudo systemctl edit rcgdip@instanceNameB.service # add the (other) related rclonemount unit as stated previously
 # ... repeat for each instance (1 rclone mount == 1 rcgdip instance)
