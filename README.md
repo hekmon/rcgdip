@@ -1,6 +1,6 @@
 # rcgdip
 
-RClone GDrive Inotify for Plex is a rclone companion for your plex server using a rclone mount on Google Drive. It will monitor changes on GDrive and launch targeted scans on your matching Plex libraries to automatically discover new files.
+RClone GDrive Inotify for Plex is a rclone companion for your plex server using a rclone mount on Google Drive. It will monitor changes on GDrive and launch targeted scans on your matching Plex libraries to automatically refresh your plex libraries as soon as your rclone drive mount can see the modifications.
 
 It supports (directly from your rclone config file):
 
@@ -60,13 +60,13 @@ While technically rcgdip can run anywhere, it is recommended to run it alongside
 #### Execution environment
 
 ```bash
-sudo useradd --home-dir /var/lib/rcgdip --create-home --system --shell /usr/sbin/nologin rcgdip
-sudo chown rcgdip: /var/lib/rcgdip
-sudo chmod 750 /var/lib/rcgdip
-sudo wget https://github.com/hekmon/rcgdip/releases/download/v0.2.0/rcgdip_linux_amd64 -O /usr/local/bin/rcgdip
-sudo chmod +x /usr/local/bin/rcgdip
+sudo useradd --home-dir '/var/lib/rcgdip' --create-home --system --shell '/usr/sbin/nologin' 'rcgdip'
+sudo chown 'rcgdip:' '/var/lib/rcgdip'
+sudo chmod 750 '/var/lib/rcgdip'
+sudo wget 'https://github.com/hekmon/rcgdip/releases/download/v0.2.0/rcgdip_linux_amd64' -O '/usr/local/bin/rcgdip'
+sudo chmod +x '/usr/local/bin/rcgdip'
 # adapt to the group of your rclone config file, here the rclone config file is owned (and readable) by the rclone group
-sudo usermod -a -G rclone rcgdip
+sudo usermod -a -G 'rclone' 'rcgdip'
 ```
 
 #### systemd service
