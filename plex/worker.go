@@ -155,11 +155,14 @@ func (c *Controller) extractBasePathsToScan(changes []drivechange.File) (scanLis
 					}
 				}
 			} else if alreadyScheduledPathTime.Before(waitUntil) {
-				// current event is fresher than the one  previously registered for this path, it means we need to wait longer to see it locally:
-				// always use the one we need to wait for the most to avoid scanning too early
-				c.logger.Debugf("[Plex] path '%s' was already registered for scan for event at %v. But a new event is younger, replacing time: %v",
-					parent, alreadyScheduledPathTime, change.Event)
-				scanList[parent] = change.Event
+				// current event is fresher than the one previously registered for this path, it means we need to wait longer to see it locally:
+				// always use the one we need to wait for the most to avoid not seeing some files by scanning too early
+				c.logger.Debugf("[Plex] path '%s' was already registered for scan for event at %v. But this new event is younger, replacing time: %v",
+					parent, alreadyScheduledPathTime, waitUntil)
+				scanList[parent] = waitUntil
+			} else {
+				c.logger.Debugf("[Plex] path '%s' is already registered for scan for event at %v. Skipping current event at %v",
+					parent, alreadyScheduledPathTime, waitUntil)
 			}
 		}
 	}
