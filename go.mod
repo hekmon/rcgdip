@@ -5,20 +5,20 @@ go 1.17
 require (
 	git.mills.io/prologic/bitcask v1.0.2
 	github.com/hekmon/cunits/v2 v2.1.0
-	github.com/hekmon/hllogger v1.0.0
+	github.com/hekmon/hllogger/v2 v2.0.0
 	github.com/iguanesolutions/go-systemd/v5 v5.1.0
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
 	github.com/rclone/rclone v1.57.0
-	github.com/shirou/gopsutil/v3 v3.22.1
-	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
-	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8
-	google.golang.org/api v0.68.0
+	github.com/shirou/gopsutil/v3 v3.22.2
+	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b
+	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65
+	google.golang.org/api v0.70.0
 )
 
 require (
 	bazil.org/fuse v0.0.0-20200524192727-fb710f7dfd05 // indirect
 	cloud.google.com/go v0.100.2 // indirect
-	cloud.google.com/go/compute v1.2.0 // indirect
+	cloud.google.com/go/compute v1.5.0 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
 	github.com/Azure/azure-storage-blob-go v0.14.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
@@ -28,7 +28,6 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20200615164410-66371956d46c // indirect
 	github.com/Microsoft/go-winio v0.5.0 // indirect
-	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/Unknwon/goconfig v1.0.0 // indirect
 	github.com/a8m/tree v0.0.0-20210414114729-ce3525c5c2ef // indirect
 	github.com/aalpar/deheap v0.0.0-20200318053559-9a0c2883bd56 // indirect
@@ -62,7 +61,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	github.com/hanwen/go-fuse/v2 v2.1.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
-	github.com/hekmon/hllogger/v2 v2.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
@@ -77,7 +75,7 @@ require (
 	github.com/koofr/go-httpclient v0.0.0-20200420163713-93aa7c75b348 // indirect
 	github.com/koofr/go-koofrclient v0.0.0-20190724113126-8e5366da203a // indirect
 	github.com/kr/fs v0.1.0 // indirect
-	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
+	github.com/lufia/plan9stats v0.0.0-20220305071607-d0b38dbe16db // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
@@ -92,7 +90,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.2 // indirect
 	github.com/plar/go-adaptive-radix-tree v1.0.4 // indirect
-	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
+	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/prometheus/client_golang v1.12.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
@@ -107,7 +105,7 @@ require (
 	github.com/spf13/cobra v1.2.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/t3rm1n4l/go-mega v0.0.0-20200416171014-ffad7fcb44b8 // indirect
-	github.com/tklauser/go-sysconf v0.3.9 // indirect
+	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/vivint/infectious v0.0.0-20200605153912-25a574ae18a3 // indirect
 	github.com/xanzy/ssh-agent v0.3.1 // indirect
@@ -121,15 +119,15 @@ require (
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.0 // indirect
 	goftp.io/server v0.4.1 // indirect
-	golang.org/x/crypto v0.0.0-20220210151621-f4118a5b28e2 // indirect
-	golang.org/x/exp v0.0.0-20220212023102-3e31098684e2 // indirect
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
+	golang.org/x/crypto v0.0.0-20220214200702-86341886e292 // indirect
+	golang.org/x/exp v0.0.0-20220307080910-a2e15db56b5f // indirect
+	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/sys v0.0.0-20220209214540-3681064d5158 // indirect
+	golang.org/x/sys v0.0.0-20220227234510-4e6760a101f9 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220211171837-173942840c17 // indirect
+	google.golang.org/genproto v0.0.0-20220304144024-325a89244dc8 // indirect
 	google.golang.org/grpc v1.44.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
