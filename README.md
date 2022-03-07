@@ -167,7 +167,7 @@ If you leave `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL` and `RCGDIP_RCLONE_BACKE
 
 ### deletion events
 
-It seems that while `--poll-interval` works very well in rclone mounting  gdrive for new files and file changes but it does not work for deleted files (it is actually tricky to support as you have to build and maintain your own index locally, which rcgdip does). It means that a new file will be seen by your rclone mount fairly quickly (respecting the `--poll-interval`) but deleted files will only disappears locally when rclone dir cache is expired (the `--dir-cache-time` flag).
+It seems that while `--poll-interval` works very well in rclone mounting  gdrive for new files and file changes, it does not work for deleted files (it is actually tricky to support as you have to build and maintain your own index locally, which rcgdip does). It means that a new file will be seen by your rclone mount fairly quickly (respecting the `--poll-interval`) but deleted files will only disappears locally when rclone dir cache is expired (the `--dir-cache-time` flag).
 
 This is why in rcgdip you can specify `RCGDIP_RCLONE_BACKEND_DRIVE_DIRCACHETIME` in addition to `RCGDIP_RCLONE_BACKEND_DRIVE_POLLINTERVAL`: deletion events will wait the `--dir-cache-time` duration before starting a scan while new or changed files will only wait the `--poll-interval` allowing fast detection when this is possible while still correctly handling deletion events.
 
