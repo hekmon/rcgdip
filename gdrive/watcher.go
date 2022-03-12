@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"reflect"
 	"strings"
 	"time"
 
@@ -55,6 +56,12 @@ func (c *Controller) workerPass() {
 		if len(changesFiles) == 0 {
 			return
 		}
+	}
+	// Rewrited files can generate 2 events: a deletion event followed by a new file event: transform them to a single change event
+	oldLen := len(changesFiles)
+	changesFiles = c.detectRewrites(changesFiles)
+	if oldLen != len(changesFiles) {
+		c.logger.Debugf("[Drive] removed %d deletion event(s) because matching path(s) change event were along (rewritten file(s))", oldLen-len(changesFiles))
 	}
 	// Print valid final changes
 	if c.logger.IsInfoShown() {
@@ -157,5 +164,31 @@ func (c *Controller) decryptPath(encryptedPath string, directory bool) (decrypte
 	}
 	c.logger.Debugf("[Drive] path decrypted using '%s' rclone backend configuration: %s  -->  %s",
 		c.rc.Conf.CryptBackendName, encryptedPath, decryptedPath)
+	return
+}
+
+func (c *Controller) detectRewrites(changesFiles []drivechange.File) (cleanedChangesFiles []drivechange.File) {
+	cleanedChangesFiles = make([]drivechange.File, 0, len(changesFiles))
+candidates:
+	for index, changeFile := range changesFiles {
+		if changeFile.Deleted {
+			// search if there is another change matching theses paths that is not a deletion to avoid adding a delete event for a newly/rewritten file
+			for searchIndex, searchChangeFile := range changesFiles {
+				// do not compare against self
+				if index == searchIndex {
+					continue
+				}
+				// is this event the exact same file (path) ?
+				if reflect.DeepEqual(changeFile.Paths, searchChangeFile.Paths) {
+					// bingo, files has been rewritten, no need to keep the deletion event
+					c.logger.Debugf("[Drive] skipping deletion event of '%s' (index %d) because another change event target the same path(s) (index %d)",
+						changeFile.Paths, index, searchIndex)
+					continue candidates
+				}
+			}
+		}
+		// If we reached here, keep the event
+		cleanedChangesFiles = append(cleanedChangesFiles, changeFile)
+	}
 	return
 }
