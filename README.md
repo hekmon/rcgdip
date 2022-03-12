@@ -4,7 +4,7 @@ RClone GDrive Inotify for Plex is a rclone companion for your plex server using 
 
 It supports (directly from your rclone config file):
 
-* [x] GDrive backend (scope `drive` only for now, `drive.file` support planned)
+* [x] GDrive backend (scope `drive` only for now, `drive.file` support planned, see [GDrive scope](#gdrive-scope) for more details)
 * [x] Custom root folder ID
 * [x] Team Drives
 * [x] Crypt backend on top of your GDrive backend for path decryption
@@ -34,6 +34,9 @@ It supports (directly from your rclone config file):
     - [scan list optimizations](#scan-list-optimizations)
       - [same path optimization](#same-path-optimization)
       - [same ancester optimization](#same-ancester-optimization)
+    - [GDrive scope](#gdrive-scope)
+      - [change the original rclone config](#change-the-original-rclone-config)
+      - [keep the original rclone config](#keep-the-original-rclone-config)
     - [db backup](#db-backup)
       - [Mono instance](#mono-instance-3)
       - [Multi instances](#multi-instances-3)
@@ -188,6 +191,20 @@ If several files have changed within the same directoy, only one scan job will b
 #### same ancester optimization
 
 If 2 paths are scheduled for scan but one of them is actually a parent of the other, only the parent will be kept as it will also scan the child. But what about wait time ? If the parent was to be scanned at T+2 but the child was to be scanned at T+3, this optimization will remove the scan job for the child but adapt the scan time of the parent to T+3 in order for all changes to be detected within the scan.
+
+### GDrive scope
+
+To work, rcgdip starts by indexing every file in the targeted drive in order to correctly process the changes event from the API (the deletion events can not be handled without an index). But the current method for doing this initial index will fail if the drive scope is `drive.file`. While this is the best scope for a rclone mount it actually prevent rcgdip from working as expected. I am currently thinking of ways to actually perform a working indexing with this restricted scope but in the meantime, to have rcgdip working properly, the scope needs to be `drive` and the oauth token must have been issued with that scope.
+
+If you are actually using the `drive.file` scope and wants to have rcgdip working there is 2 ways of doing it.
+
+#### change the original rclone config
+
+Simply edit the rclone config and edit the scope. Once edited, issue a [rclone reconnect command](https://rclone.org/commands/rclone_config_reconnect/) to refresh the oauth token with the new scope.
+
+#### keep the original rclone config
+
+If you want to keep the original file in place, copy it elsewhere, edit the copy, issue the [rclone reconnect command](https://rclone.org/commands/rclone_config_reconnect/) to refresh the oauth token with the new scope using the new rclone config file and use this new file as target for rcgdip.
 
 ### db backup
 

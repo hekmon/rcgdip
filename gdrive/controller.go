@@ -2,6 +2,7 @@ package gdrive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -68,6 +69,11 @@ func New(ctx context.Context, conf Config) (c *Controller, err error) {
 		return
 	}
 	conf.Logger.Infof("[Drive] %s", rc.Summary())
+	// Prevent futur indexing to fail for now
+	if rc.Drive.Options.Scope == "drive.file" {
+		err = errors.New("scope 'drive.file' is not supported yet (indexing will fail), please refer to project readme")
+		return
+	}
 	// Then we initialize ourself
 	c = &Controller{
 		ctx:        ctx,
