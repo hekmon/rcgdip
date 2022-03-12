@@ -102,7 +102,7 @@ func (c *Controller) workerPass(changes []drivechange.File) {
 	// Start or schedule the jobs
 	c.workers.Add(len(jobs))
 	for jobIndex, job := range jobs {
-		c.logger.Debugf("[Plex] launching job #%d: scheduling scan of '%s' in '%s' for %v", jobIndex+1, job.ScanPath, job.LibName, job.ScanAt)
+		c.logger.Debugf("[Plex] launching job #%d: scheduling scan of '%s' in '%s' at %v", jobIndex+1, job.ScanPath, job.LibName, job.ScanAt)
 		go c.jobExecutor(job)
 	}
 }
