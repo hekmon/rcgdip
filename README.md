@@ -53,7 +53,7 @@ Download a binary from the [releases page](https://github.com/hekmon/rcgdip/rele
 #### From source
 
 ```bash
-go build -ldflags="-s -w -X 'main.appVersion=$(git describe)'" -trimpath -o rcgdip github.com/hekmon/rcgdip/cmd
+env GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X 'main.appVersion=$(git describe)'" -trimpath -o rcgdip github.com/hekmon/rcgdip/cmd
 ```
 
 ### Configure your system
